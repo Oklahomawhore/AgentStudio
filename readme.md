@@ -181,7 +181,9 @@ python summarize_performance.py --input_file <output of ISG-eval.py>
 ISG-Agent is a compositional framework that leverage tools to generate high-quality interleaved content while strictly follows user's query. 
 
 <img src="figures/Agent_Result.jpeg">
-ISG-Agent will output interleaved image and text results. You can run evaluation on ISG-Bench following `ISG_agent/README.md`. See `ISG_agent/README.md` for enviroment setup and how to use. You can also reproduct the experiment result by comparing to the chart.
+ISG-Agent will output interleaved image and text results. You can run evaluation on ISG-Agent.
+
+Please See `ISG_agent/README.md` for enviroment setup and how to use. You can also reproduct the experiment result by comparing to the chart.
 
 | Category   | Model     | Avg.  | Style | Prog. | 3D    | Dec.  | I-T C. | Temp. | VST   | VQA   |
 |------------|-----------|-------|-------|-------|-------|-------|--------|-------|-------|-------|
