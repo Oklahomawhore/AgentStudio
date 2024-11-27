@@ -22,9 +22,11 @@
 ## Contents
 - [Updates \& News](#updates--news)
 - [Contents](#contents)
-- [Evaluation Method: Interleaved Scene Graph (ISG)](#interleaved-scene-graph)
+- [Interleaved Scene Graph](#interleaved-scene-graph)
+  - [Environment Setup](#environment-setup)
+  - [Repository Management](#repository-management)
 - [Evaluating Your Own Model](#evaluating-your-own-model)
-- [Agent: ISG-Agent](#isg-agent-exploring-the-upper-bound-for-interleaved-generation)
+- [ISG-Agent: Exploring the Upper Bound for Interleaved Generation](#isg-agent-exploring-the-upper-bound-for-interleaved-generation)
 - [Acknowledgments](#acknowledgments)
 - [Citation](#citation)
 
@@ -176,8 +178,19 @@ python summarize_performance.py --input_file <output of ISG-eval.py>
 ## ISG-Agent: Exploring the Upper Bound for Interleaved Generation
 
 <img src="figures/agent.png">
-ISG-Agent is a compositional framework that leverage tools to generate high-quality interleaved content while strictly follows user's query. See `ISG_agent/README.md` for enviroment setup and how to use.
+ISG-Agent is a compositional framework that leverage tools to generate high-quality interleaved content while strictly follows user's query. 
 
+<img src="figures/Agent_Result.jpeg">
+ISG-Agent will output interleaved image and text results. You can run evaluation on ISG-Agent.
+
+Please See `ISG_agent/README.md` for enviroment setup and how to use. You can also reproduct the experiment result by comparing to the chart.
+
+| Category   | Model     | Avg.  | Style | Prog. | 3D    | Dec.  | I-T C. | Temp. | VST   | VQA   |
+|------------|-----------|-------|-------|-------|-------|-------|--------|-------|-------|-------|
+| Block      | ISG-AGENT | 5.515 | 5.391 | 6.181 | 6.081 | 4.243 | 6.408  | 6.816 | 5.678 | 3.321 |
+| Image      | ISG-AGENT | 0.574 | 0.538 | 0.752 | 0.359 | 0.617 | 0.368  | 0.670 | 0.713 | -     |
+| Structural | ISG-AGENT | 0.871 | 0.944 | 0.967 | 0.788 | 0.902 | 0.800  | 1.000 | 0.987 | 0.577 |
+| Holistic   | ISG-AGENT | 6.262 | 5.873 | 6.459 | 4.887 | 7.582 | 6.932  | 4.540 | 7.030 | 6.795  |
 
 ## Acknowledgments
 
