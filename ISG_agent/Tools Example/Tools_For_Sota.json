@@ -1,0 +1,107 @@
+[
+    {
+        "name": "VideoGeneration",
+        "description": "Generates a list of screenshots based on provided prompts and one image. The tool returns extracted screenshots from the generated video. Only call this tool if the expected generated sequence is time-continuous or frame-continuous. It should be called only when the user wants to generate a temporal continuous image sequence, an continuous animation sequence or a transformation sequence. Any noncontinuous requirement will lead to a bad result.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "prompt_list": {
+              "type": "array",
+              "description": "A list of one text for text-guided generation, the first element must be a text prompt",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["text"],
+                    "description": "Specifies that the item is a text prompt"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "The content of the text prompt."
+                  }
+                }
+              },
+              "minItems": 1,
+              "maxItems": 1
+            },
+            "num_screenshot":{
+              "type": "number",
+              "description": "The desired number of screenshot in the generated video. Return the number of screenshots based on the input number. The number should be an integer between 1 and 8",
+              "default": 4
+            }
+          },
+          "required": ["prompt_list", "num_screenshot"]
+        }
+      },
+  {
+    "name": "ImageGeneration",
+    "description": "Generates one image based on text prompt only, no input image allowed. The 'prompt' parameter is the main text description of the image to generate. The 'prompt' should be **descriptive** instead of narrative. Use your ability to pass in the descriptive prompt (modifier, main objects, setting, plot, style) from the input, main objects(characters), setting, style(realistic, oil-painting, pixel-art ...) should be detailed and follow the input. Use this tool when the user wants to generate a single image based on a text prompt only",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "prompt": {
+                "type": "string",
+                "description": "The text prompt describing the desired image."
+            },
+            "negative_prompt": {
+                "type": "string",
+                "description": "Optional text specifying elements to avoid in the image generation."
+            }
+        },
+        "required": ["prompt"]
+    }
+  },
+  {
+    "name": "ImageEdit",
+    "description": "Edits only one image based on the provided prompt and one image. The tool uses a pipeline to modify the image according to the input prompt. The input image and mask will be provided by the user, only prompt input is required. Use this tool when the user wants to edit an image like change an image into different style, remove some objects, add some attributes.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "prompt": {
+                "type": "string",
+                "description": "Text prompt describing the edits to be applied to the image."
+            }
+        },
+        "required": ["prompt"]
+    }
+  },
+  {
+    "name": "Fixed3DGeneration",
+    "description": "Return four different fixed views (60-left, 30-left,30-right, 60-right) of a 3D object based on a single input image provided by the user. Only Use this tool when the user wants to retrieve different views of a 3D object or a 3D scene from a single image, you should not call this tool for image generation.",
+    "input_schema":{
+        "type": "object",
+        "properties": {}
+    }
+  },
+  {
+    "name": "Free3DGeneration",
+    "description": "Return any-length selected views of a 3D object or a scene based on a single input image provided by the user. The video image will rotate clockwise(start from viewing right) for 360 degrees from the original image. The user should input a list of any-length proportions indicating the position of the screenshot and how many screenshots to take within the total duration of the video. Therefore, you should calculate the proportion (degree/360) step by step, degree is degree when direction is right, degree is 360-degree when direction is left. For example, if the user wants (45-right, 90-right, 90-left, 45-left) views, the degrees are [45,90,270,315] so the input list should be [0.125, 0.250, 0.750, 0.875] in DECIMAL form. If there is perspectives like up/down, use 0 to displace them since the model don't have ability to generate different height's view. Only Use this tool when the user wants to retrieve different views of a 3D object or a 3D scene from a single image, you should not call this tool for image generation.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "time_stamps": {
+                "type": "array",
+                "items": {
+                    "type": "number"
+                }
+            }
+        },
+        "required": ["time_stamps"]
+    }
+},
+{
+  "name":"ImageMorph",
+  "description":"Morphing based on the provided prompt and two images. The tool uses a pipeline to morph from the first image to the second image. The input images will be provided by the user, only simple prompt input is required. Use this tool when the user wants to get four images of the morphing process between two images.",
+  "input_schema":{
+      "type": "object",
+      "properties": {
+          "prompt": {
+              "type": "string",
+              "description": "Give really simple prompt: 'a photo of [cls]'"
+          }
+      },
+      "required": ["prompt"]
+  }
+}
+]
