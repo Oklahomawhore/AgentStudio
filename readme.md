@@ -22,9 +22,11 @@
 ## Contents
 - [Updates \& News](#updates--news)
 - [Contents](#contents)
-- [Evaluation Method: Interleaved Scene Graph (ISG)](#interleaved-scene-graph)
+- [Interleaved Scene Graph](#interleaved-scene-graph)
+  - [Environment Setup](#environment-setup)
+  - [Repository Management](#repository-management)
 - [Evaluating Your Own Model](#evaluating-your-own-model)
-- [Agent: ISG-Agent](#isg-agent-exploring-the-upper-bound-for-interleaved-generation)
+- [ISG-Agent: Exploring the Upper Bound for Interleaved Generation](#isg-agent-exploring-the-upper-bound-for-interleaved-generation)
 - [Acknowledgments](#acknowledgments)
 - [Citation](#citation)
 
@@ -176,8 +178,10 @@ python summarize_performance.py --input_file <output of ISG-eval.py>
 ## ISG-Agent: Exploring the Upper Bound for Interleaved Generation
 
 <img src="figures/agent.png">
-ISG-Agent is a compositional framework that leverage tools to generate high-quality interleaved content while strictly follows user's query. See `ISG_agent/README.md` for enviroment setup and how to use.
+ISG-Agent is a compositional framework that leverage tools to generate high-quality interleaved content while strictly follows user's query. 
 
+<img src="figures/Agent_Result.jpeg">
+ISG-Agent will output interleaved image and text results. You can run evaluation on ISG-Bench following `ISG_agent/README.md`. See `ISG_agent/README.md` for enviroment setup and how to use.
 
 ## Acknowledgments
 
