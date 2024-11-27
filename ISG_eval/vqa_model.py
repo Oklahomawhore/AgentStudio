@@ -12,8 +12,6 @@ from torchvision.transforms.functional import InterpolationMode
 import base64
 import json
 
-
-
 class VQA_Model:
     def __init__(self, model_name):
         self.prompt = """You are a helpful and impartial visual assistant. Please follow user's instructions strictly."""

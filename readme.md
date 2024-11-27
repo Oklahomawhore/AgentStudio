@@ -17,14 +17,14 @@
 </div>
 
 ## Updates & News
-- [27/11/2024] :page_facing_up: We release our paper on [Arxiv](http://arxiv.org/abs/2402.04788) and our [Dataset](http://huggingface//) today!
+- [27/11/2024] :page_facing_up: We release our [paper](http://arxiv.org/abs/2402.04788) and [dataset](http://huggingface//) today!
   
 ## Contents
 - [Updates \& News](#updates--news)
 - [Contents](#contents)
 - [Evaluation Method: Interleaved Scene Graph (ISG)](#interleaved-scene-graph)
 - [Evaluating Your Own Model](#evaluating-your-own-model)
-- [Agent: ISG-Agent](#isg-agent)
+- [Agent: ISG-Agent](#isg-agent-exploring-the-upper-bound-for-interleaved-generation)
 - [Acknowledgments](#acknowledgments)
 - [Citation](#citation)
 
@@ -33,6 +33,11 @@
 <img src="figures/benchmark.png">
 
 This evaluation method and benchmark is designed for evaluating interleaved generation in four levels: Structural, Block, Image, and Holistic. It is an well established testbed for model can perform both multimodal understanding and generation such as [Show-o](https://github.com/showlab/Show-o) and [Anole](https://github.com/GAIR-NLP/anole).
+
+### Environment Setup
+Given that we mainly use GPT-4o for VQA in *Image* and *Block* level as well as MLLM-as-a-Judge in *Holistic* level, you can simply setup by: `pip install openai`.
+
+### Repository Management
 
 ```markdown
 /ISG_eval
@@ -139,7 +144,6 @@ This evaluation method and benchmark is designed for evaluating interleaved gene
 }
 ```
 
-
 ## Evaluating Your Own Model
 
 <img src="figures/case_study.png">
@@ -173,6 +177,8 @@ python summarize_performance.py --input_file <output of ISG-eval.py>
 
 <img src="figures/agent.png">
 ISG-Agent is a compositional framework that leverage tools to generate high-quality interleaved content while strictly follows user's query. See `ISG_agent/README.md` for enviroment setup and how to use.
+
+
 ## Acknowledgments
 
 This project is a follow-up of [MLLM-as-a-Judge](https://arxiv.org/pdf/2402.04788). This work is partially funded by Toyota Motor Corporation. We’d also like to extend a thank you to [Jieyu Zhang](https://jieyuz2.github.io/), [Weikai Huang](https://weikaih04.github.io/), and [Zixian Ma](https://zixianma.github.io/) for their insightful feedback and support.

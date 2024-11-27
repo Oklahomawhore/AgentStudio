@@ -95,8 +95,8 @@ def evaluate_block(gt_item, renamed_dict, judge_prompt, requirements, vqa_model)
             if 'img' in i['subject'] and 'img' in i['object']:
                 prompt_text = judge_prompt['Image-Image'].format(requirement=requirement, question=question)
                 input_content_list = [
-                    {"type": "image_url", "image_url": {"url": encode_image(subject)}},
-                    {"type": "image_url", "image_url": {"url": encode_image(object)}},
+                    {"type": "image_url", "image_url": {"url": encode_image(subject), "detail": "low"}},
+                    {"type": "image_url", "image_url": {"url": encode_image(object), "detail": "low"}},
                     {"type": "text", "text": prompt_text}
                 ]
             elif 'text' in i['subject'] and 'text' in i['object']:
@@ -108,14 +108,14 @@ def evaluate_block(gt_item, renamed_dict, judge_prompt, requirements, vqa_model)
                     question = question.replace(subject, ' `Text` ')
                     prompt_text = judge_prompt['Text-Image'].format(requirement=requirement, text=subject, question=question)
                     input_content_list = [
-                        {"type": "image_url", "image_url": {"url": encode_image(object)}},
+                        {"type": "image_url", "image_url": {"url": encode_image(object), "detail": "low"}},
                         {"type": "text", "text": prompt_text}
                     ]
                 else:
                     question = question.replace(object, ' `Text` ')
                     prompt_text = judge_prompt['Text-Image'].format(requirement=requirement, text=object, question=question)
                     input_content_list = [
-                        {"type": "image_url", "image_url": {"url": encode_image(subject)}},
+                        {"type": "image_url", "image_url": {"url": encode_image(subject), "detail": "low"}},
                         {"type": "text", "text": prompt_text}
                     ]
             
@@ -135,7 +135,7 @@ def evaluate_response(item, judge_prompt, vqa_model, with_gt=False):
         
         for ii in content_list:
             if ii['type'] == 'image':
-                ii['image_url'] = {"url": encode_image(ii['content'])}
+                ii['image_url'] = {"url": encode_image(ii['content']), "detail": "low"}
                 ii['type'] = 'image_url'
                 ii.pop('content', None)
                 ii.pop('caption', None)
@@ -177,7 +177,7 @@ def evaluate_image(gt_item, renamed_dict, judge_prompt, requirements, vqa_model)
         if ii['image'] in renamed_dict:
             prompt_text = judge_prompt['DSG'].format(question=ii['Question'])
             input_content_list = [
-                {"type": "image_url", "image_url": {"url": encode_image(renamed_dict[ii['image']])}},
+                {"type": "image_url", "image_url": {"url": encode_image(renamed_dict[ii['image']]), "detail": "low"}},
                 {"type": "text", "text": prompt_text}
             ]
             ii['judge'] = vqa_model.generate_answer(input_content_list)
