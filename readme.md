@@ -1,8 +1,8 @@
 <div align="center">
 <h1>Interleaved Scene Graph for Interleaved Text-and-Image Generation Assessment</h1>
 
-[![Website](https://img.shields.io/badge/Website-%F0%9F%8C%8D-blue?style=for-the-badge&logoWidth=40)](https://interleaved-eval.github.io/TrustLLM-Website/)
-[![Paper](https://img.shields.io/badge/Paper-%F0%9F%8E%93-lightgrey?style=for-the-badge&logoWidth=40)](https://arxiv.org/abs/2402.04788)
+[![Website](https://img.shields.io/badge/Website-%F0%9F%8C%8D-blue?style=for-the-badge&logoWidth=40)](https://interleaved-eval.github.io/)
+[![Paper](https://img.shields.io/badge/Paper-%F0%9F%8E%93-lightgrey?style=for-the-badge&logoWidth=40)](https://arxiv.org/abs/2411.17188)
 [![Dataset](https://img.shields.io/badge/Dataset-%F0%9F%92%BE-green?style=for-the-badge&logoWidth=40)](https://huggingface.co/datasets/shuaishuaicdp/ISG)
 
 
@@ -186,12 +186,10 @@ This project is a follow-up of [MLLM-as-a-Judge](https://arxiv.org/pdf/2402.0478
 ## Citation
 
 ```
-@misc{chen2024mllmasajudge,
-      title={MLLM-as-a-Judge: Assessing Multimodal LLM-as-a-Judge with Vision-Language Benchmark}, 
-      author={Dongping Chen and Ruoxi Chen and Shilin Zhang and Yinuo Liu and Yaochen Wang and Huichi Zhou and Qihui Zhang and Pan Zhou and Yao Wan and Lichao Sun},
+@article{chen2024interleaved,
+      title={Interleaved Scene Graph for Interleaved Text-and-Image Generation Assessment}, 
+      author={Dongping Chen and Ruoxi Chen and Shu Pu and Zhaoyi Liu and Yanru Wu and Caixi Chen and Benlin Liu and Yue Huang and Yao Wan and Pan Zhou and Ranjay Krishna},
+      journal={arXiv preprint arXiv:2411.17188}, 
       year={2024},
-      eprint={2402.04788},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
 }
 ```
