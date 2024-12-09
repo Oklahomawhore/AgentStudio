@@ -17,8 +17,8 @@
 </div>
 
 ## Updates & News
-- [09/12/2024] :star: We release code for compositional framework (Gemini/Claude + SD3/SD2.1/Flux) today!
-- [27/11/2024] :page_facing_up: We release our [paper](https://arxiv.org/abs/2411.17188) and [dataset](https://github.com/Dongping-Chen/ISG) today!
+- [12/09/2024] :star: We release code for compositional framework (Gemini/Claude + SD3/SD2.1/Flux) today!
+- [11/27/2024] :page_facing_up: We release our [paper](https://arxiv.org/abs/2411.17188) and [dataset](https://github.com/Dongping-Chen/ISG) today!
   
 ## Contents
 - [Updates \& News](#updates--news)
