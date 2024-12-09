@@ -3,7 +3,7 @@
 
 [![Website](https://img.shields.io/badge/Website-%F0%9F%8C%8D-blue?style=for-the-badge&logoWidth=40)](https://interleaved-eval.github.io/)
 [![Paper](https://img.shields.io/badge/Paper-%F0%9F%8E%93-lightgrey?style=for-the-badge&logoWidth=40)](https://arxiv.org/abs/2411.17188)
-[![Dataset](https://img.shields.io/badge/Dataset-%F0%9F%92%BE-green?style=for-the-badge&logoWidth=40)](https://huggingface.co/datasets/shuaishuaicdp/ISG)
+[![Dataset](https://img.shields.io/badge/Dataset-%F0%9F%92%BE-green?style=for-the-badge&logoWidth=40)](https://huggingface.co/datasets/shuaishuaicdp/ISG-Bench)
 
 
 <img src="https://img.shields.io/github/last-commit/Dongping-Chen/ISG?style=flat-square&color=5D6D7E" alt="git-last-commit" />
@@ -17,6 +17,7 @@
 </div>
 
 ## Updates & News
+- [09/12/2024] :star: We release code for compositional framework (Gemini/Claude + SD3/SD2.1/Flux) today!
 - [27/11/2024] :page_facing_up: We release our [paper](https://arxiv.org/abs/2411.17188) and [dataset](https://github.com/Dongping-Chen/ISG) today!
   
 ## Contents
@@ -48,7 +49,7 @@ Given that we mainly use GPT-4o for VQA in *Image* and *Block* level as well as 
 ├── ...
 ```
 
-1. **images**: Contains images in queries and golden answer. You can download it from [here](https://) and place them under ISG_eval.
+1. **images**: Contains images in queries and golden answer. You can download it from [here](https://huggingface.co/datasets/shuaishuaicdp/ISG-Bench) and place them under ISG_eval.
 
 2. **ISG-Bench.jsonl**: Contains ground truth compiled previously by ISG. One data sample is as follows. It contains `Query` for question and `Golden` for human-annotated golden answer.
 
@@ -175,7 +176,19 @@ python ISG-eval.py --input_file <your file>
 python summarize_performance.py --input_file <output of ISG-eval.py>
 ```
 
-## ISG-Agent: Exploring the Upper Bound for Interleaved Generation
+## Compositional Framework
+
+### Gemini/Claude + SD3/SD2.1/Flux
+We provide Gemini/Claude + SD3/SD2.1/Flux for compositional framework. You can run the following script to generate interleaved content.
+
+```shell
+python compositional_inference.py \
+    --text_generator <gemini/claude> \
+    --image_generator <sd3/sd2.1/flux> \
+    --input_file ./ISG_eval/ISG-Bench.jsonl
+```
+
+### ISG-Agent: Exploring the Upper Bound for Interleaved Generation
 
 <img src="figures/agent.png">
 ISG-Agent is a compositional framework that leverage tools to generate high-quality interleaved content while strictly follows user's query. 
