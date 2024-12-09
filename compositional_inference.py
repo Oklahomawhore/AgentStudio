@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+import sys
 import json
 from tqdm import tqdm
 from ISG_eval.get_model import LLM_SD
@@ -9,7 +10,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--text_generator", type=str, default="claude-3.5-sonnet")
     parser.add_argument("--image_generator", type=str, default="sd3")
-    parser.add_argument("--input_file", type=str, default=None)
+    parser.add_argument("--input_file", type=str, default="./ISG_eval/ISG-Bench.jsonl")
     parser.add_argument("--output_file", type=str, default="auto")
     parser.add_argument("--save_dir", type=str, default="auto")
     parser.add_argument("--start", type=int, default=0)
@@ -21,7 +22,8 @@ if __name__ == "__main__":
     print(args)
 
     with open(args.input_file, "r") as f:
-        data = json.load(f)
+        data = [json.loads(line) for line in f]
+
     if args.output_file == "auto":
         args.output_file = f"output/{args.text_generator}_{args.image_generator}_{args.start}_{args.end}.jsonl"
     os.makedirs(os.path.dirname(args.output_file), exist_ok=True)

@@ -15,7 +15,7 @@ import base64
 import imghdr
 import io
 from PIL import Image
-from utils import local_image_to_data_url, modify_content
+from .utils import local_image_to_data_url, modify_content
 import google.generativeai as genai
 import gc
 
