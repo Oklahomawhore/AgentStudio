@@ -1,7 +1,7 @@
 # Requirements:
 ## Environments:
 - Since there are multiple tools used in this project, we have to prepare three different environments
-- For Most of the tools: `pip install -r requirements.txt`
+- For Most of the tools: `pip install -r requirements_agent.txt`
 - For Flux: You can refer to Flux repo `https://github.com/black-forest-labs/flux` to download the `diffusers` environment for Flux.
 - For DreamMover: You can refer to DreamMover repo `https://github.com/leoShen917/DreamMover` to download the environment for the DreamMover.
 ## Model Checkpoints:
