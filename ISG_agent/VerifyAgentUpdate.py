@@ -12,11 +12,20 @@ import base64
 import sys
 from time import sleep
 import shutil
+import dotenv
 
-benchmark_file = # <path to benchmark.jsonl>
+dotenv.load_dotenv()
 
-OpenAIClient = OpenAI()
-ClaudeClient = Anthropic()
+benchmark_file = "../ISG_eval/ISG-Bench.jsonl" # <path to benchmark.jsonl>
+
+OpenAIClient = OpenAI(
+   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   base_url=os.getenv("OPENAI_BASE_URL")
+)
+ClaudeClient = OpenAI(
+   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   base_url=os.getenv("OPENAI_BASE_URL")
+)
 
 def load_task_prompt(original_tasks_file: str, task_id: str) -> Dict:
     """

@@ -17,18 +17,19 @@ from urllib.parse import urlparse
 
 
 class VideoGenerator:
-    def __init__(self):
+    def __init__(self,device="cuda"):
         # Initialize models and other parameters
         # Since `interp` controls different hyperparameters and models, we need to prepare for both cases
         self.models = {}
+        self.device= device
         self.load_models()
 
     def load_models(self):
         # Load models for `interp=False` and `interp=True` cases
 
         # For interp=False
-        ckpt_path_no_interp = 'DynamiCrafter/checkpoints/dynamicrafter_256_v1/model.ckpt'
-        config_path_no_interp = 'DynamiCrafter/configs/inference_256_v1.0.yaml'
+        ckpt_path_no_interp = 'Models/DynamiCrafter/model.ckpt'
+        config_path_no_interp = 'Models/DynamiCrafter/configs/inference_256_v1.0.yaml'
         self.models['no_interp'] = self.load_model(ckpt_path_no_interp, config_path_no_interp)
 
         # For interp=True
@@ -41,7 +42,7 @@ class VideoGenerator:
         model_config = config.pop("model", OmegaConf.create())
         model_config['params']['unet_config']['params']['use_checkpoint'] = False
         model = instantiate_from_config(model_config)
-        model = model.cuda()
+        model = model.to(self.device)
         model.perframe_ae = True  # Assuming `perframe_ae` is True by default
         assert os.path.exists(ckpt_path), f"Error: checkpoint not found at {ckpt_path}!"
         model = self.load_model_checkpoint(model, ckpt_path)

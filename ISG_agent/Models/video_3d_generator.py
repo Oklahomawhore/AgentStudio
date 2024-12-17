@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 # Ensure that the necessary modules are accessible
 # Dynamically add the path for generative models and necessary modules
-sys.path.append(os.path.realpath(os.path.join(os.path.dirname(__file__), "./generative_models/")))
+sys.path.append(os.path.realpath(os.path.join(os.path.dirname(__file__), "generative-models")))
 from sgm.inference.helpers import embed_watermark
 from sgm.util import default, instantiate_from_config
 from scripts.util.detection.nsfw_and_watermark_dectection import DeepFloydDataFiltering
@@ -36,7 +36,7 @@ class Video3DGenerator:
         self.device = device if torch.cuda.is_available() else "cpu"
         self.model_config = os.path.join(
             os.path.dirname(__file__),
-            "generative_models",
+            "generative-models",
             "scripts",
             "sampling",
             "configs",

@@ -11,12 +11,12 @@ from urllib.parse import urlparse
 from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
 
 class ImageGenerator:
-    def __init__(self):
+    def __init__(self,device="cuda"):
         # Initialize the model and move it to GPU
         model_id = "stabilityai/stable-diffusion-2-1-base"
         scheduler = EulerDiscreteScheduler.from_pretrained(model_id, subfolder="scheduler")
         self.pipe = StableDiffusionPipeline.from_pretrained(model_id, scheduler=scheduler, torch_dtype=torch.float16)
-        self.pipe = self.pipe.to("cuda")
+        self.pipe = self.pipe.to(device)
 
     def generate_image(self, prompt: str) -> str:
         # Generate the image

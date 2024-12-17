@@ -10,16 +10,16 @@ from Models.image_morph import ImageMorph  # Ensure this matches your file struc
 app = Flask(__name__)
 
 # Set your model paths here
-MODEL_PATH = "SD1.5 local model path here"
-VAE_PATH = "local path to stabilityai/sd-vae-ft-mse"
-LORA_PATH = "Using DreamMover/lora/lora_ckpt/demo/003" 
+MODEL_PATH = "Models/stable-diffusion-v1-5"
+VAE_PATH = "Models//sd-vae-ft-mse"
+LORA_PATH = "Models/DreamMover/lora_tmp/pytorch_lora_weights.bin" 
 
 # Initialize ImageMorph with a thread-safe lock
 morph_lock = Lock()
 image_morph = ImageMorph(MODEL_PATH, VAE_PATH, LORA_PATH)
 
 # --------------------------------------------
-# Image Morphing Endpoint
+# Image Morphinqg Endpoint
 # --------------------------------------------
 @app.route('/morph', methods=['POST'])
 def morph_images():

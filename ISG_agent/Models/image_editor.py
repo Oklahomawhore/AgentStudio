@@ -9,13 +9,13 @@ import os
 import requests
 from urllib.parse import urlparse
 class ImageEditor:
-    def __init__(self):
+    def __init__(self,device="cuda"):
         # Initialize the Stable Diffusion 3 pipeline
         self.pipe = StableDiffusion3InstructPix2PixPipeline.from_pretrained(
             "BleachNick/SD3_UltraEdit_w_mask",
             torch_dtype=torch.float16
         )
-        self.pipe = self.pipe.to("cuda" if torch.cuda.is_available() else "cpu")
+        self.pipe = self.pipe.to(device if torch.cuda.is_available() else "cpu")
 
     def image_to_base64(self, image: Image.Image) -> str:
         """Convert PIL image to base64 string."""

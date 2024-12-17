@@ -7,6 +7,7 @@ import json
 import base64
 from typing import List, Dict, Any
 from retry import retry
+import http.client
 
 """
 Unverify: 
@@ -21,10 +22,22 @@ from api_interface import (
     generate_3d_video_agent,
     morph_images_agent
 )
-ClaudeClient = Anthropic()
-OpenAIClient = OpenAI()
-TOOL_DIR = "Tools"
-TOOL_AGENT_FILE = os.path.join(TOOL_DIR, "Tools_For_Sota.json")
+import dotenv
+
+dotenv.load_dotenv()
+
+benchmark_file = "../ISG_eval/ISG-Bench.jsonl" # <path to benchmark.jsonl>
+
+OpenAIClient = OpenAI(
+   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   base_url=os.getenv("OPENAI_BASE_URL")
+)
+ClaudeClient = OpenAI(
+   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   base_url=os.getenv("OPENAI_BASE_URL")
+)
+TOOL_DIR = "Tools Example"
+TOOL_AGENT_FILE = os.path.join(TOOL_DIR, "Tools_Openai.json")
 
 def load_tools(tool_names):
     tools = []
@@ -41,10 +54,10 @@ def load_tools(tool_names):
 def process_agent_tool_use(agent_response,data):
     # Assume `agent_response` contains tool_use info
     # print(agent_response)
-    if agent_response.stop_reason == "tool_use":
-        tool_use = agent_response.content[-1]  # Extract the tool use information
-        tool_name = tool_use.name
-        tool_input = tool_use.input
+    if agent_response.message.tool_calls is not None and len(agent_response.message.tool_calls) > 0:
+        tool_use = agent_response.message.tool_calls[-1]  # Extract the tool use information
+        tool_name = tool_use.function.name
+        tool_input = json.loads(tool_use.function.arguments)
 
         try:
             # Depending on the tool name, call the appropriate API function
@@ -112,11 +125,11 @@ def process_agent_tool_use(agent_response,data):
 
         except Exception as e:
             raise ValueError(f"Error using tool '{tool_name}': {str(e)}")
-    elif agent_response.stop_reason == "end_turn":
+    elif agent_response.finish_reason == "stop":
         print("No tool used")
-        return {"text": agent_response.content[0].text, "images": []}
+        return {"text": agent_response.message.content, "images": []}
     else:
-        raise ValueError(f"Unsupported stop reason: {agent_response.stop_reason}")
+        raise ValueError(f"Unsupported stop reason: {agent_response.finish_reason}")
 
 def get_image_media_type(image_data):
     """
@@ -152,7 +165,7 @@ def tool_agent(json_input:str,task: str) -> Dict[str, Any]:
             tools = json.load(f)
             # print(tools)
     except Exception as e:
-        return {'error': f'Error reading tools.json: {str(e)}'}
+        raise Exception({'error': f'Error reading tools.json: {str(e)}'})
     
         # Prepare the messages
     messages = []
@@ -168,21 +181,24 @@ def tool_agent(json_input:str,task: str) -> Dict[str, Any]:
         print(content[-2]['text'])
         print(content[-1]['text'])
         messages.append({
+            "role" : "system",
+            "content" : "Decide which tool to use with regard to the instruction and the input image number. Since you have no access to the images themselves, you should make decision base on the text instruction and image number only. Instruction will explicitly tell which tool to use, input image number will restrict which tool cannot use. ImageGeneration requires no image input, ImageEdit,VideoGeneration,3DGeneration requires one image input.Make the input text argument **descriptive** for image, video generation or image edit tools to understand. Make the input text argument concise, refine the important information to avoid truncation raised by visual generation model"
+        })
+        messages.append({
             "role": "user",
             "content": content,
         })
-        tool_choice = {"type":"any"}
+        # tool_choice = {"type":"any"}
         
         # Call the API
         try:
-            response = ClaudeClient.messages.create(
+            completion = ClaudeClient.chat.completions.create(
                 model="claude-3-5-sonnet-20240620",  # Replace with your model name
                 max_tokens=512,
-                tools=tools,
-                tool_choice=tool_choice,
+                tools=[{"type" : "function", "function" : item} for item in tools],
                 messages=messages,
-                system="Decide which tool to use with regard to the instruction and the input image number. Since you have no access to the images themselves, you should make decision base on the text instruction and image number only. Instruction will explicitly tell which tool to use, input image number will restrict which tool cannot use. ImageGeneration requires no image input, ImageEdit,VideoGeneration,3DGeneration requires one image input.Make the input text argument **descriptive** for image, video generation or image edit tools to understand. Make the input text argument concise, refine the important information to avoid truncation raised by visual generation model",
             )
+            response = completion.choices[0]
         except Exception as e:
             raise ValueError(f"Error calling the API: {e}")
     else:
@@ -199,11 +215,9 @@ def tool_agent(json_input:str,task: str) -> Dict[str, Any]:
                             
                             # Append the image data to the content list
                             content.append({
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": image_media_type,  # Adjusted dynamically
-                                    "data": img_base64,
+                                "type": "image_url",
+                                "image_url": {
+                                    "url":  f"data:{image_media_type};base64,{img_base64}"
                                 },
                             })
                     except Exception as e:
@@ -215,16 +229,20 @@ def tool_agent(json_input:str,task: str) -> Dict[str, Any]:
         # print(content)
         print(content[-1]['text'])
         messages.append({
+            "role":"system",
+            "content":"In this task, generate a **brief** `text-only` response with or without image input. You should simulate as if the image is generated by yourself to maintain the continuity. You should **Never** apologizes or response any form of negative acknowledgment like \"I apologize\", \"The image doesn't show\" of the image regarding the presence or absence of certain elements in the image. You should use \"This image\" instead of \"The image\" Never compare the differences and discrepancies between the text instruction and the image, only focus on the similar part. The response should be harmonious with both the image and the instruction, ensuring that any contradictions or irrelevant details are ignored. If you cannot extract any aligning information, you should focus more on the instruction. Do not output too many unimportant things if the instruction didn't ask even if the instruction wants you to output in detail.",
+        })
+        messages.append({
             "role": "user",
             "content": content,
         })
         try:
-            response = ClaudeClient.messages.create(
-                model="claude-3-5-sonnet-20240620",  # Replace with your model name
+            completion = ClaudeClient.chat.completions.create(
+                model="gpt-4o-mini",  # Replace with your model name
                 max_tokens=8192,
                 messages=messages,
-                system="In this task, generate a **brief** `text-only` response with or without image input. You should simulate as if the image is generated by yourself to maintain the continuity. You should **Never** apologizes or response any form of negative acknowledgment like \"I apologize\", \"The image doesn't show\" of the image regarding the presence or absence of certain elements in the image. You should use \"This image\" instead of \"The image\" Never compare the differences and discrepancies between the text instruction and the image, only focus on the similar part. The response should be harmonious with both the image and the instruction, ensuring that any contradictions or irrelevant details are ignored. If you cannot extract any aligning information, you should focus more on the instruction. Do not output too many unimportant things if the instruction didn't ask even if the instruction wants you to output in detail.",
             )
+            response = completion.choices[0]
         except Exception as e:
             raise ValueError(f"Error calling the API: {e}")
     return process_agent_tool_use(response,data)

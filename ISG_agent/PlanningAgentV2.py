@@ -9,12 +9,25 @@ from ToolAgent import tool_agent
 from PIL import Image, ImageFile
 from openai import OpenAI
 from anthropic import  Anthropic
+import http.client
+import dotenv
 
+dotenv.load_dotenv()
 
-OpenAIClient = OpenAI()
-ClaudeClient = Anthropic()
+benchmark_file = "../ISG_eval/ISG-Bench.jsonl" # <path to benchmark.jsonl>
 
-benchmark_file = "path to benchmark json"
+OpenAIClient = OpenAI(
+   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   base_url=os.getenv("OPENAI_BASE_URL")
+)
+ClaudeClient = OpenAI(
+   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   base_url=os.getenv("OPENAI_BASE_URL")
+)
+
+IMAGE_ROOT = "../ISG_eval"
+
+benchmark_file = "../ISG_eval/ISG-Bench.json"
 
 def save_error_file(task_dir, error_message):
     os.makedirs(task_dir, exist_ok=True)
@@ -61,7 +74,7 @@ def preprocess_task(task, task_dir, plan_model):
                 Dict['text'] += seg['content']
                 Dict_for_plan['text'] += seg['content']
             elif seg['type'] == "image":
-                image_path = seg['content']
+                image_path = os.path.join(IMAGE_ROOT, seg['content'])
                 bak = 0
                 try:
                     # print(os.path.getsize(image_path))
@@ -137,7 +150,7 @@ def preprocess_task(task, task_dir, plan_model):
                 Dict['text'] += seg['content']
                 Dict_for_plan['text'] += seg['content']
             elif seg['type'] == "image":
-                image_path = seg['content']
+                image_path = os.path.join(IMAGE_ROOT, seg['content'])
                 bak = 0
                 try:
                     with open(image_path, 'rb') as f:
@@ -266,8 +279,8 @@ Remember:
 Please provide the corrected plan in required JSON format.
 """
     try:
-        response = OpenAIClient.chat.completions.create(
-            model='gpt-4o',
+        completion = OpenAIClient.chat.completions.create(
+            model='gpt-4o-mini',
             messages=[
                 {
                     "role": "user",
@@ -277,12 +290,12 @@ Please provide the corrected plan in required JSON format.
             max_tokens=4096,
             temperature=0.7
         )
-        response_text = response.choices[0].message.content
+        response_text = completion.choices[0].message.content
     except Exception as e:
         print(f"Error calling Azure API: {str(e)}")
         print("Switch to Claude API")
         try:
-            response = ClaudeClient.messages.create(
+            completion = OpenAIClient.chat.completions.create(
                 model="claude-3-5-sonnet-20240620",
                 max_tokens=8192,
                 messages=[
@@ -293,7 +306,8 @@ Please provide the corrected plan in required JSON format.
                 ],
                 temperature=0.7,
             )
-            response_text = response.content[0].text
+            # response_text = response.content[0].text
+            response_text = completion.choices[0].message.content
         except Exception as e:
             print(f"Error calling Claude API: {str(e)}")
             raise ValueError("Error calling API")
@@ -674,38 +688,38 @@ def main():
         else:
             try: 
                 messages, Dict, Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
-                response = OpenAIClient.chat.completions.create(
+
+                completion = OpenAIClient.chat.completions.create(
                     model='gpt-4o',
                     messages=messages,
                     max_tokens=4096,
                     temperature=0.5
                 )
-                response_text = response.choices[0].message.content
+                response_text = completion.choices[0].message.content
                 try:
                     extract_plan_from_response(response_text, plan_file)
                 except Exception as e:
                     print(f"Error extracting plan: {str(e)}")
-                    print(response)
+                    print(completion)
                     raise ValueError("Error extracting plan")
             except Exception as e:
                 print(f"Error in Azure API, switch to Claude API: {str(e)}") 
                 print("Switch to Claude API")
                 # print("Error in Azure API, switch to Claude API")
-                messages,Dict,Dict_for_plan = preprocess_task(task, task_dir, plan_model="claude")
-            
-                response = ClaudeClient.messages.create(
+                messages,Dict,Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
+                
+                completion = OpenAIClient.chat.completions.create(
                     model = "claude-3-5-sonnet-20240620",
                     max_tokens=8192,
-                    system=PLANNING_PROMPT,
                     messages=messages,
                     temperature=0.7,
                 )
-                response_text = response.content[0].text
+                response_text = completion.choices[0].message.content
                 try:
-                    extract_plan_from_response(response.content[0].text, plan_file)
+                    extract_plan_from_response(response_text, plan_file)
                 except Exception as e:
                     print(f"Error extracting plan: {str(e)}")
-                    print(response)
+                    print(completion)
                     continue
             plan = load_input_json(plan_file)
 

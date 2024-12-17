@@ -8,8 +8,8 @@ import logging
 # Import the model classes
 from Models.Dynami_video_generator import VideoGenerator
 from Models.video_3d_generator import Video3DGenerator
-# from image_generator import ImageGenerator for ablation study
-from Models.image_editorimage_editor import ImageEditor
+from Models.image_generator import ImageGenerator  #for ablation study
+from Models.image_editor import ImageEditor
 # from image_editor_weak import ImageEditor for ablation study
 
 # Initialize the Flask app
@@ -17,17 +17,17 @@ app = Flask(__name__)
 
 # Initialize models with thread-safe locks
 video_generator_lock = Lock()
-video_generator = VideoGenerator()
+video_generator = VideoGenerator(device="cuda:0")
 
 video_3d_generator_lock = Lock()
-video_3d_generator = Video3DGenerator(device="cuda")
+video_3d_generator = Video3DGenerator(device="cuda:1")
 
 
 image_generator_lock = Lock()
-image_generator = ImageGenerator()
+image_generator = ImageGenerator(device="cuda:2")
 
 image_editor_lock = Lock()
-image_editor = ImageEditor()
+image_editor = ImageEditor(device="cuda:3")
 
 # --------------------------------------------
 # Video Generation Endpoint
