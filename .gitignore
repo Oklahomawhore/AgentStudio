@@ -175,6 +175,7 @@ cython_debug/
 # Output files
 
 */results*
+*/videos
 
 # VS-code
 

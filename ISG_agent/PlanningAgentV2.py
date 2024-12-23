@@ -14,7 +14,7 @@ import dotenv
 
 dotenv.load_dotenv()
 
-benchmark_file = "../ISG_eval/ISG-Bench.jsonl" # <path to benchmark.jsonl>
+benchmark_file = "../ISV_eval/VideoStoryTelling/video_storytelling_mini.json" # <path to benchmark.jsonl>
 
 OpenAIClient = OpenAI(
    api_key=os.getenv("OPENAI_API_KEY"), # KEY
@@ -25,9 +25,9 @@ ClaudeClient = OpenAI(
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 
-IMAGE_ROOT = "../ISG_eval"
+IMAGE_ROOT = "../ISV_eval/VideoStoryTelling/"
 
-benchmark_file = "../ISG_eval/ISG-Bench.json"
+benchmark_file = "../ISV_eval/VideoStoryTelling/video_storytelling_mini.json"
 
 def save_error_file(task_dir, error_message):
     os.makedirs(task_dir, exist_ok=True)
@@ -491,7 +491,7 @@ def extract_structure(benchmark):
         if item["type"] == "text":
             golden_list.append(f"<gen_text{text_i}>")
             text_i += 1
-        else:
+        elif item["type"] == "image":
             golden_list.append(f"<gen_img{img_i}>")
             img_i += 1
 
@@ -690,7 +690,7 @@ def main():
                 messages, Dict, Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
 
                 completion = OpenAIClient.chat.completions.create(
-                    model='gpt-4o',
+                    model='gpt-4o-mini',
                     messages=messages,
                     max_tokens=4096,
                     temperature=0.5
@@ -709,7 +709,7 @@ def main():
                 messages,Dict,Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
                 
                 completion = OpenAIClient.chat.completions.create(
-                    model = "claude-3-5-sonnet-20240620",
+                    model = "claude-3-5-sonnet-20241022",
                     max_tokens=8192,
                     messages=messages,
                     temperature=0.7,

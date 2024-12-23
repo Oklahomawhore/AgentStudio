@@ -6,6 +6,7 @@ Flux_URL = "http://localhost:7900"
 
 MORPH_URL = "http://localhost:7901"
 
+KLING_URL = "http://localhost:7903"
 
 
 @retry(tries=3, delay=1)
@@ -77,5 +78,47 @@ def morph_images_agent(img_path1, img_path2, prompt):
     response = requests.post(url, json=data)
     if response.status_code == 200:
         return response.json().get("frames", [])
+    else:
+        raise Exception(f"Error {response.status_code}: {response.text}")
+    
+#KLING Service
+
+
+@retry(tries=3, delay=1)
+def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1):
+    url = f"{KLING_URL}/generate_video"  # Backend Flask API endpoint for img2video
+    data = {
+        "image": image_url,
+        "prompt": prompt,
+        "seconds_per_screenshot" : seconds_per_screenshot
+    }
+    response = requests.post(url, json=data)
+    if response.status_code == 200:
+        return response.json().get("screenshots", [])
+    else:
+        raise Exception(f"Error {response.status_code}: {response.text}")
+    
+@retry(tries=3, delay=1)
+def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
+    url = f"{KLING_URL}/generate_video"  # Backend Flask API endpoint for text2video
+    data = {
+        "prompt": prompt_list,
+        "seconds_per_screenshot" : seconds_per_screenshot
+    }
+    response = requests.post(url, json=data)
+    if response.status_code == 200:
+        return response.json().get("screenshots", [])
+    else:
+        raise Exception(f"Error {response.status_code}: {response.text}")
+    
+@retry(tries=3, delay=1)
+def kling_imggen_agent(prompt):
+    url = f"{KLING_URL}/generate_image"  # Backend Flask API endpoint for imggen
+    data = {
+        "prompt": prompt,
+    }
+    response = requests.post(url, json=data)
+    if response.status_code == 200:
+        return response.json().get("generated_image_base64", "")
     else:
         raise Exception(f"Error {response.status_code}: {response.text}")

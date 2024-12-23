@@ -16,7 +16,7 @@ import dotenv
 
 dotenv.load_dotenv()
 
-benchmark_file = "../ISG_eval/ISG-Bench.jsonl" # <path to benchmark.jsonl>
+benchmark_file = "../ISV_eval/VideoStoryTelling/video_storytelling_mini.json" # <path to benchmark.jsonl>
 
 OpenAIClient = OpenAI(
    api_key=os.getenv("OPENAI_API_KEY"), # KEY

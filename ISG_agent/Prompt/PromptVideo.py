@@ -34,9 +34,8 @@ PLANNING_PROMPT="""
 
 - **Tool Input Restrictions**:
   - **ImageGeneration**: Requires descriptive text only; no image references.
-  - **ImageEdit**: Requires descriptive text and one input image.
-  - **VideoGeneration**: Requires descriptive text and one input image; specify the number of frames.
-  - **Fixed3DGeneration**, **Free3DGeneration**, **ImageMorph**: Refer to the Tool Box for specific usage.
+  - **Text2Video_VideoGeneration**: Requires descriptive text; specify the number of frames.
+  - **Image2Video_VideoGeneration**: Requires descriptive text and one input image; specify the number of frames.
   
 - **Avoid Pronouns in Instructions**:
   - Do not use pronouns like `"previous outline"`, `"the first image"`, or any references to images.
@@ -55,42 +54,16 @@ PLANNING_PROMPT="""
    - **Function**: Generates one image based on descriptive text only.
    - **Usage**: Ideal for creating the initial frame when no image is available.
    
-2. **ImageEdit**:
-   - **Function**: Edits an input image based on a provided prompt.
-   - **Usage**: Suitable for modifications like style transfer or attribute changes.
-   
-3. **VideoGeneration**:
-   - **Function**: Creates a sequence of images (frames) based on input text and one input image.
+2. **Text2Video_VideoGeneration**:
+   - **Function**: Creates a sequence of images (screenshots) based on input text.
    - **Usage**: Best for generating continuous events or animations. Specify the number of frames required.
    - **Constraints**: Cannot coexist with other tools in one plan and can only be used once per task.
-   
-4. **Fixed3DGeneration**:
-   - **Function**: Returns four fixed different views (60-left, 30-left, 30-right, 60-right) of a 3D object from a single input image.
-   - **Usage**: Use when multiple fixed views of a 3D object or scene are needed.
-   
-5. **Free3DGeneration**:
-   - **Function**: Returns multiple chosen views of a 3D object from a single input image.
-   - **Usage**: Specify desired views in the input text using the format `[Angle1: "Degree-left/right", Angle2: ...]`.
-   
-6. **ImageMorph**:
-   - **Function**: Returns four images showing the morphing process from the first image to the second image.
-   - **Usage**: Ideal for illustrating transformations between two images. Provide two images in the input images.
 
----
+3. **Image2Video_VideoGeneration**:
+   - **Function**: Creates a sequence of images (screenshots) based on input text and one input image.
+   - **Usage**: Best for generating continuous events or animations. Specify the number of frames required.
+   - **Constraints**: Cannot coexist with other tools in one plan and can only be used once per task.
 
-### **Warnings**:
-
-- **Mutually Exclusive Tools**:
-  - **VideoGeneration**, **3DGeneration**, and **ImageMorph** cannot coexist with other tools within the same plan.
-  - Each can only be planned once per task.
-  
-- **Caption Execution Order**:
-  - `"Caption"` steps are always executed after all images are generated.
-  - Plan any input images in the `"Caption"` step if necessary.
-  
-- **Tool Limitations**:
-  - `VideoGeneration`, `3DGeneration`, and `ImageMorph` offer less text-controllable generation.
-  - For more precise control and editable outputs, prefer `ImageGeneration` or `ImageEdit`.
 
 ---
 

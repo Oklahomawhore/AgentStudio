@@ -1,0 +1,58 @@
+[
+    {
+      "name": "Text2Video_VideoGeneration",
+      "description": "Generates a video based on provided text prompts. The tool returns extracted screenshots from the generated video. Only use this tool if the expected sequence is time-continuous or frame-continuous, such as temporal animations or transformation sequences.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "The text prompt describing the desired video content."
+          },
+          "seconds_per_screenshot": {
+            "type": "integer",
+            "description": "The number of seconds per screenshot in the generated video.",
+            "default": 1
+          }
+        },
+        "required": ["prompt", "seconds_per_screenshot"]
+      }
+    },
+    {
+      "name": "Image2Video_VideoGeneration",
+      "description": "Generates a video based on provided image and text prompt. The tool returns extracted screenshots from the generated video. Only use this tool if the expected sequence is time-continuous or frame-continuous, such as temporal animations or transformation sequences.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "The text prompt describing the video content."
+          },
+          "seconds_per_screenshot": {
+            "type": "integer",
+            "description": "The number of seconds per screenshot in the generated video.",
+            "default": 1
+          }
+        },
+        "required": ["prompt", "seconds_per_screenshot"]
+      }
+    },
+    {
+      "name": "ImageGeneration",
+      "description": "Generates one image based on a text prompt. The prompt should be descriptive and include details about the main object, setting, and style.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "The text prompt describing the desired image."
+          },
+          "negative_prompt": {
+            "type": "string",
+            "description": "Optional text specifying elements to avoid in the image generation."
+          }
+        },
+        "required": ["prompt"]
+      }
+    }
+  ]

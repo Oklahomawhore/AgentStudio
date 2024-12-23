@@ -20,13 +20,16 @@ from api_interface import (
     generate_image_agent,
     edit_image_agent,
     generate_3d_video_agent,
-    morph_images_agent
+    morph_images_agent,
+    kling_img2video_agent,
+    kling_imggen_agent,
+    kling_text2video_agent
 )
 import dotenv
 
 dotenv.load_dotenv()
 
-benchmark_file = "../ISG_eval/ISG-Bench.jsonl" # <path to benchmark.jsonl>
+benchmark_file = "../ISV_eval/VideoStoryTelling/video_storytelling_mini.json" # <path to benchmark.jsonl>
 
 OpenAIClient = OpenAI(
    api_key=os.getenv("OPENAI_API_KEY"), # KEY
@@ -37,7 +40,7 @@ ClaudeClient = OpenAI(
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 TOOL_DIR = "Tools Example"
-TOOL_AGENT_FILE = os.path.join(TOOL_DIR, "Tools_Openai.json")
+TOOL_AGENT_FILE = os.path.join(TOOL_DIR, "Tools_For_Kling.json")
 
 def load_tools(tool_names):
     tools = []
@@ -61,30 +64,47 @@ def process_agent_tool_use(agent_response,data):
 
         try:
             # Depending on the tool name, call the appropriate API function
-            if tool_name == "VideoGeneration":
-                print("Agent wants to generate a video")
-                prompt_list = []
+            if tool_name == "Image2Video_VideoGeneration":
+                print("Agent wants to generate a video from an image")
+                
                 if len(data['Input_images']) == 1:
-                    prompt_list=tool_input["prompt_list"]
+                    # Extracting the prompt list and screenshot count
+                    prompt = tool_input["prompt"]
                     num_images = tool_input.get("num_screenshot", 4)
                     seconds_per_screenshot = float(4) / num_images
-                    print(seconds_per_screenshot)
-                    prompt_list.append({"type": "image", "content": data['Input_images'][0]})
+                    print(f"Seconds per screenshot: {seconds_per_screenshot}")
+
+                    # Calling the kling_img2video_agent with the prepared data
+                    screenshots = kling_img2video_agent(data['Input_images'][0], prompt, seconds_per_screenshot)
+                    return {"text": "", "images": screenshots}
                 else:
-                    raise ValueError("Invalid number of input images")
-                
-                screenshots = generate_video_agent(prompt_list,seconds_per_screenshot=seconds_per_screenshot)
-                return {"text":"","images": screenshots}
-            
+                    raise ValueError("Invalid number of input images, exactly 1 image is required for Image2Video_VideoGeneration")
+
+            elif tool_name == "Text2Video_VideoGeneration":
+                print("Agent wants to generate a video from text prompts")
+                if len(data['Input_images']) == 0:
+                    # Only text prompts, no input images required
+                    prompt = tool_input["prompt"]
+                    num_images = tool_input.get("num_screenshot", 4)
+                    seconds_per_screenshot = float(4) / num_images
+                    print(f"Seconds per screenshot: {seconds_per_screenshot}")
+
+                    # Calling the kling_text2video_agent with the provided prompt list
+                    screenshots = kling_text2video_agent(prompt, seconds_per_screenshot)
+                    return {"text": "", "images": screenshots}
+                else:
+                    raise ValueError("Text2Video_VideoGeneration does not accept input images, only prompts.")
+
             elif tool_name == "ImageGeneration":
                 print("Agent wants to generate an image")
                 prompt = tool_input["prompt"]
                 if len(data['Input_images']) != 0:
-                    print(data['Input_images'])
+                    print("Received input images, but ImageGeneration tool does not accept input images.")
                     raise ValueError("ImageGeneration tool does not accept input images")
-                image = generate_image_agent(prompt)
-                return {"text":"","images": [image]}
-            
+
+                # Calling the kling_imggen_agent with the provided text prompt
+                image = kling_imggen_agent(prompt)
+                return {"text": "", "images": [image]}
             elif tool_name == "ImageEdit":
                 print("Agent wants to edit an image")
                 prompt = tool_input["prompt"]
@@ -193,7 +213,7 @@ def tool_agent(json_input:str,task: str) -> Dict[str, Any]:
         # Call the API
         try:
             completion = ClaudeClient.chat.completions.create(
-                model="claude-3-5-sonnet-20240620",  # Replace with your model name
+                model="gpt-4o-mini",  # Replace with your model name
                 max_tokens=512,
                 tools=[{"type" : "function", "function" : item} for item in tools],
                 messages=messages,
