@@ -1,7 +1,7 @@
 import os
 import json
 from argparse import ArgumentParser
-from Prompt.NewUnifyPrompt import PLANNING_PROMPT
+from Prompt.PromptVideo_multiple import PLANNING_PROMPT
 import base64
 from tqdm import tqdm
 import re
@@ -21,7 +21,7 @@ OpenAIClient = OpenAI(
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 ClaudeClient = OpenAI(
-   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   api_key=os.getenv("ClaudeClient"), # KEY
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 
@@ -203,11 +203,11 @@ def preprocess_task(task, task_dir, plan_model):
             "text": f"###Task:{Dict['text']}\n\n"
         })
         
-        content.append({
-            "type": "text",
-            "text": f"###Structure Requirement:{extract_structure(task)['Answer_str']}\n\n"
-        })
-        print(f"Structure: {extract_structure(task)['Answer_str']}")
+        # content.append({
+        #     "type": "text",
+        #     "text": f"###Structure Requirement:{extract_structure(task)['Answer_str']}\n\n"
+        # })
+        # print(f"Structure: {extract_structure(task)['Answer_str']}")
         messages = [
             {"role": "system", "content": PLANNING_PROMPT},
             {"role": "user", "content": content},
@@ -233,54 +233,72 @@ def double_check(task_dir,task_content,structure,response_text,error_message):
 
 def reconstruction(task_content,structure,response_text,error_message):
     prompt =f"""
-Error: {error_message}
-Given the Task:
+Error: {error_message}  
+Given the Task:  
 
-{task_content}
+{task_content}  
 
-Given the Structure Requirement:
+Given the Structure Requirement:  
 
-{structure}
+{structure}  
 
-Given the following previous response text:
+Given the following previous response text:  
 
-{response_text}
+{response_text}  
 
-Please reconstruct the plan according to the following instructions:
+### **Instructions for Reconstruction**:  
 
-1. The plan should be in the json format: [{{"Task":"", ...}}, {{"Task":"", ...}}, ...].
+1. **Ensure JSON Compliance**:  
+   - The plan must be formatted as a valid JSON array: `[{"Task":"", ...}, {"Task":"", ...}, ...]`.  
 
+2. **Correct Misuse of Task Names**:  
+   - Replace any invalid Task Names with `"Call_tool"`. Retain the remaining content as-is.
 
-2. Misuse of Task Name:
-    - Valid Task Names: "Call_tool", "AddImage", "Caption".
-    - All the misused Task Names are "Call_tool" steps, which the directly use a tool name to describe the task. You should replace the misused Task Name with "Call_tool", keep the rest of the content unchanged. 
+3. **Enforce Tool Usage Restrictions**:  
+   - No `"Call_tool"` step should refer to unsupported tools like Video Generation, 3D Generation, or Image Morph directly.  
+   - Decide the appropriate tool for each step:  
+     - Add "Use ImageGeneration tool:" to the beginning of `Input_text` when the task is "generate an image".  
+     - Add "Use ImageEdit tool:" for tasks involving "style transfer", "modifying an object", or "adding/removing attributes".  
 
+4. **Handle Multiple Steps for Visual Tasks**:  
+   - If multiple `"Call_tool"` steps suggest video/3D/morph generation, split them into smaller steps using ImageGeneration and ImageEdit tools.  
 
-3. Apply the following restrictions:
-   - If there are more than one "Call_tool" steps in one plan, none of them should refer to Video Generation or 3D Generation or Image Morph. You have to decide whether to use ImageGeneration or ImageEdit tool based on each step's Input_text and append "Use ImageGeneration tool:" or "Use ImageEdit tool:" at the beginning of the Input_text.
-   - If there are many Call_tool steps but some of them seem like they call VideoGeneration or 3D Generation or ImageMorph, you have to reconstruct the whole plan, decide whether to use one step of VideoGeneration, 3D Generation or Image Morphor or use multiple steps of ImageGeneration and ImageEdit tools. You also have to directly append "Use {{Toolname}} tool:" at the beginning of the Input_text.
+5. **Placeholder Consistency**:  
+   - Use `#image{{ID}}#` for original input images, starting from 1.  
+   - Use `<GEN_{{ID}}>` for generated images, starting from 0.  
 
-Remember:
-- "generate an image", "generate one image" means to use ImageGeneration tool.
-- "style transfer", "modify object", "add/remove attribute", "transform ..." refers to use ImageEdit.
-- "Create a sequence/series of continuous images" refers to use VideoGeneration.
-- "Create multiple views of images" refers to use 3D Generation.
-- "Morph between two images" refers to use ImageMorph.
-- ImageGeneration's Input_images list should be empty (no input image).
-- ImageEdit's Input_images list should contain only one image.
-- VideoGeneration/3D Generation's Input_images list should contain only one image.
-- ImageMorph's Input_images list should contain two images.
-- If there is any conflict of restrictions, you should reconstruct the whole plan.
+6. **Story Consistency**:  
+   - For each step, ensure characters are consistently described with unique attributes: face, costumes, age, profession, race, and nationality.  
 
-3. Placeholder Problem:
-- For the original input image, use #image{{ID}}# with ID starting from 1 as a placeholder.
-- For the generated input image, use <GEN_{{ID}}> with ID starting from 0 as a placeholder.
+7. **Output Plan Format**:  
+   - Use `"Output": "<WAIT>"` as the placeholder in every step.  
 
-Please provide the corrected plan in required JSON format.
+---
+
+### **Plan Structure Example**:  
+
+**Example 1** (Simple story with generated images):  
+```json
+[
+    {
+        "Step": 1,
+        "Task": "Call_tool",
+        "Input_text": "Use ImageGeneration tool: Alice, a 34-year-old mother with two kids, has a kind and warm face. She wears a pastel-colored apron over her casual dress and is of European descent with a soft-spoken personality. Professionally, Alice is a homemaker.",
+        "Input_images": [],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 2,
+        "Task": "Call_tool",
+        "Input_text": "Use ImageEdit tool: Alice steps outside her cozy suburban home on a sunny morning. She wears her apron and casual dress. Modify her environment to include a vibrant garden and children playing on the lawn.",
+        "Input_images": ["<GEN_0>"],
+        "Output": "<WAIT>"
+    }
+]
 """
     try:
         completion = OpenAIClient.chat.completions.create(
-            model='gpt-4o-mini',
+            model='gpt-4o',
             messages=[
                 {
                     "role": "user",
@@ -295,7 +313,7 @@ Please provide the corrected plan in required JSON format.
         print(f"Error calling Azure API: {str(e)}")
         print("Switch to Claude API")
         try:
-            completion = OpenAIClient.chat.completions.create(
+            completion = ClaudeClient.chat.completions.create(
                 model="claude-3-5-sonnet-20240620",
                 max_tokens=8192,
                 messages=[
@@ -348,8 +366,8 @@ def extract_plan_from_response(response_text, plan_file):
         extracted_json = json.loads(json_text)
         save_plan_json(extracted_json, plan_file)
         print(f"JSON extracted and saved to {plan_file}")
-    except json.JSONDecodeError:
-        raise ValueError("No valid JSON found in the response")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"No valid JSON found in the response: {str(e)}")
 
 
 def decode_result_into_jsonl(result, task_dir, benchmark_file):
@@ -487,6 +505,7 @@ def extract_structure(benchmark):
     golden_list = []
     text_i = 1
     img_i = 1
+    video_i = 1
     for item in benchmark["Golden"]:
         if item["type"] == "text":
             golden_list.append(f"<gen_text{text_i}>")
@@ -494,6 +513,9 @@ def extract_structure(benchmark):
         elif item["type"] == "image":
             golden_list.append(f"<gen_img{img_i}>")
             img_i += 1
+        elif item["type"] == "video":
+            golden_list.append(f"<gen_vid{video_i}>")
+            video_i += 1
 
     return {
     "Answer": golden_list,
@@ -507,6 +529,7 @@ def Execute_plan(plan,task, task_dir):
     Call_tool_times = 0
     VDGen = 0
     generated_image_list = []
+    generated_video_list = []
     for i,step in enumerate(plan):
         Task = step.get("Task", "")
         try:
@@ -553,9 +576,10 @@ def Execute_plan(plan,task, task_dir):
                     error_message = f"Error processing task in step{i+1}: {str(e)}"
                     # print(error_message)
                     save_error_file(task_dir, error_message)
-                    response = {'text': '', 'images': []} 
+                    response = {'text': '', 'images': [], 'video': ""} 
                 step['Output'] = []
                 images = response.get('images', [])
+                video = response.get('video', "")
                 if len(images) >= 2:
                     VDGen += 1
                     if VDGen > 1 or Call_tool_times > 1:
@@ -563,7 +587,7 @@ def Execute_plan(plan,task, task_dir):
                         print(error_message)
                         save_error_file(task_dir, error_message)
                         break
-                if len(images) == 0:
+                if len(images) == 0 and video == "":
                     print(f"Warning: No images generated in step {i+1}")
                     error_message = f"Warning: No images generated in step {i+1}"
                     save_error_file(task_dir, error_message)
@@ -581,6 +605,15 @@ def Execute_plan(plan,task, task_dir):
                         save_error_file(task_dir, error_message)
                         step['Output'].append(None)
                 generated_image_list.extend(step['Output'])
+                
+                if video == "":
+                    print(f"Warning: No video generated in step {i+1}")
+                    error_message = f"Warning: No video generated in step {i+1}"
+                    save_error_file(task_dir, error_message)
+                    break
+                else:
+                    step['Output'].append(video)
+                    generated_video_list.append(video)
                 for i,img in enumerate(generated_image_list):
                     if img is None:
                         generated_image_list[i] = f"<GEN_{i}>"
@@ -651,6 +684,8 @@ def Execute_plan(plan,task, task_dir):
             print(error_message)
             save_error_file(task_dir, error_message)
             continue
+    for vid in generated_video_list:
+        result += f"<boi>{vid}<eoi>"
     plan_file_final = f"{task_dir}/plan_{task.get('id', '0000')}_final.json"
     result_json = decode_result_into_jsonl(result, task_dir,benchmark_file)
     save_result_json(result_json, task_dir)
@@ -690,7 +725,7 @@ def main():
                 messages, Dict, Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
 
                 completion = OpenAIClient.chat.completions.create(
-                    model='gpt-4o-mini',
+                    model='gpt-4o',
                     messages=messages,
                     max_tokens=4096,
                     temperature=0.5
@@ -708,8 +743,8 @@ def main():
                 # print("Error in Azure API, switch to Claude API")
                 messages,Dict,Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
                 
-                completion = OpenAIClient.chat.completions.create(
-                    model = "claude-3-5-sonnet-20241022",
+                completion = ClaudeClient.chat.completions.create(
+                    model = "claude-3-5-sonnet-20240620",
                     max_tokens=8192,
                     messages=messages,
                     temperature=0.7,

@@ -30,6 +30,7 @@ def generate_image_agent(prompt):
         "prompt": prompt
     }
     response = requests.post(url, json=data)
+    #FIXME: return mock data
     if response.status_code == 200:
         return response.json().get("generated_image_base64", "")
     else:
@@ -84,7 +85,6 @@ def morph_images_agent(img_path1, img_path2, prompt):
 #KLING Service
 
 
-@retry(tries=3, delay=1)
 def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1):
     url = f"{KLING_URL}/generate_video"  # Backend Flask API endpoint for img2video
     data = {
@@ -92,26 +92,30 @@ def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1):
         "prompt": prompt,
         "seconds_per_screenshot" : seconds_per_screenshot
     }
-    response = requests.post(url, json=data)
-    if response.status_code == 200:
-        return response.json().get("screenshots", [])
-    else:
-        raise Exception(f"Error {response.status_code}: {response.text}")
-    
-@retry(tries=3, delay=1)
+    #FIXME: mock data
+    return "video/xxx.mp4"
+    # response = requests.post(url, json=data)
+    # if response.status_code == 200:
+    #     return response.json().get("video_file", "")
+    # else:
+    #     raise Exception(f"Error {response.status_code}: {response.text}")
+
+
 def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
     url = f"{KLING_URL}/generate_video"  # Backend Flask API endpoint for text2video
     data = {
         "prompt": prompt_list,
         "seconds_per_screenshot" : seconds_per_screenshot
     }
-    response = requests.post(url, json=data)
-    if response.status_code == 200:
-        return response.json().get("screenshots", [])
-    else:
-        raise Exception(f"Error {response.status_code}: {response.text}")
-    
-@retry(tries=3, delay=1)
+    #FIXME: mock data
+    return "video/xxx.mp4"
+    # response = requests.post(url, json=data)
+    # if response.status_code == 200:
+    #     return response.json().get("video_file", "")
+    # else:
+    #     raise Exception(f"Error {response.status_code}: {response.text}")
+
+
 def kling_imggen_agent(prompt):
     url = f"{KLING_URL}/generate_image"  # Backend Flask API endpoint for imggen
     data = {

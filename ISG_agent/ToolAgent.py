@@ -36,7 +36,7 @@ OpenAIClient = OpenAI(
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 ClaudeClient = OpenAI(
-   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   api_key=os.getenv("CLAUDE_API_KEY"), # KEY
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 TOOL_DIR = "Tools Example"
@@ -75,8 +75,8 @@ def process_agent_tool_use(agent_response,data):
                     print(f"Seconds per screenshot: {seconds_per_screenshot}")
 
                     # Calling the kling_img2video_agent with the prepared data
-                    screenshots = kling_img2video_agent(data['Input_images'][0], prompt, seconds_per_screenshot)
-                    return {"text": "", "images": screenshots}
+                    video_url = kling_img2video_agent(data['Input_images'][0], prompt, seconds_per_screenshot)
+                    return {"text": "", "images": [], "video" : video_url}
                 else:
                     raise ValueError("Invalid number of input images, exactly 1 image is required for Image2Video_VideoGeneration")
 
@@ -90,8 +90,8 @@ def process_agent_tool_use(agent_response,data):
                     print(f"Seconds per screenshot: {seconds_per_screenshot}")
 
                     # Calling the kling_text2video_agent with the provided prompt list
-                    screenshots = kling_text2video_agent(prompt, seconds_per_screenshot)
-                    return {"text": "", "images": screenshots}
+                    video_url = kling_text2video_agent(prompt, seconds_per_screenshot)
+                    return {"text": "", "images": [], "video": video_url}
                 else:
                     raise ValueError("Text2Video_VideoGeneration does not accept input images, only prompts.")
 
@@ -202,7 +202,7 @@ def tool_agent(json_input:str,task: str) -> Dict[str, Any]:
         print(content[-1]['text'])
         messages.append({
             "role" : "system",
-            "content" : "Decide which tool to use with regard to the instruction and the input image number. Since you have no access to the images themselves, you should make decision base on the text instruction and image number only. Instruction will explicitly tell which tool to use, input image number will restrict which tool cannot use. ImageGeneration requires no image input, ImageEdit,VideoGeneration,3DGeneration requires one image input.Make the input text argument **descriptive** for image, video generation or image edit tools to understand. Make the input text argument concise, refine the important information to avoid truncation raised by visual generation model"
+            "content" : "Decide which tool to use with regard to the instruction and the input image number. Since you have no access to the images themselves, you should make decision base on the text instruction and image number only. Instruction will explicitly tell which tool to use, input image number will restrict which tool cannot use. ImageGeneration and Text2Video_VideoGeneration requires *NO* image input, Image2Video_VideoGeneration requires *ONE* image input. Make the input text argument **descriptive** for image, video generation tools to understand. Make the input text argument concise, refine the important information to avoid truncation raised by visual generation model"
         })
         messages.append({
             "role": "user",
@@ -213,7 +213,7 @@ def tool_agent(json_input:str,task: str) -> Dict[str, Any]:
         # Call the API
         try:
             completion = ClaudeClient.chat.completions.create(
-                model="gpt-4o-mini",  # Replace with your model name
+                model="claude-3-5-sonnet-20240620",  # Replace with your model name
                 max_tokens=512,
                 tools=[{"type" : "function", "function" : item} for item in tools],
                 messages=messages,
@@ -258,7 +258,7 @@ def tool_agent(json_input:str,task: str) -> Dict[str, Any]:
         })
         try:
             completion = ClaudeClient.chat.completions.create(
-                model="gpt-4o-mini",  # Replace with your model name
+                model="claude-3-5-sonnet-20240620",  # Replace with your model name
                 max_tokens=8192,
                 messages=messages,
             )

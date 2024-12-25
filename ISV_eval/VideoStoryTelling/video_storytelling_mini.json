@@ -14,10 +14,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In a cozy, dimly lit room, a young writer sits at their desk, fingers poised over the keyboard, ready to embark on a creative journey. The air is filled with anticipation as they prepare to weave together a tale that has been brewing in their mind.\",\n    \"#image2#\": \"As the first words begin to flow, the writer feels a surge of inspiration. Thoughts race through their mind, jumping from one idea to another like a spark igniting a flame. Each keystroke resonates with a sense of purpose and excitement, as they dive deeper into their narrative.\",\n    \"#image3#\": \"With each passing moment, the story evolves, characters coming to life with vivid personalities and intricate backstories. The writer's passion radiates through the clattering of keys, creating a symphony of creativity that fills the room, drowning out the outside world.\",\n    \"#image4#\": \"Suddenly, a moment of doubt creeps in. The writer pauses, fingers hovering above the keyboard as they contemplate the direction of their story. But after a brief moment of reflection, determination takes over, and they dive back into the flow, ready to conquer the challenges ahead.\",\n    \"#image5#\": \"With renewed vigor, the writer's fingers dance across the keyboard, sentences forming like magic. The story unfolds with unexpected twists and turns, captivating the writer's imagination and compelling them to push forward, eager to reach the conclusion"
       },
-      { "type": "image", "content": "images/v_Typing_g22_0252.jpg" },
-      { "type": "image", "content": "images/v_Typing_g22_0249.jpg" },
-      { "type": "image", "content": "images/v_Typing_g22_0249.jpg" },
-      { "type": "image", "content": "images/v_Typing_g22_0249.jpg" },
       { "type": "video", "content": "v_Typing_g22" }
     ],
     "predict": {
@@ -67,10 +63,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In a bustling city, a young woman named Mia stands at the edge of a vibrant park, her eyes sparkling with excitement as she prepares for a day of adventure.\",\n    \"#image2#\": \"Mia pulls out her camera, a cherished gift from her late grandfather, and takes a moment to adjust the settings, reminiscing about the countless stories he captured through his lens.\",\n    \"#image3#\": \"With a deep breath, she steps onto a winding path, surrounded by blooming flowers and the laughter of children playing nearby, feeling a sense of freedom and joy.\",\n    \"#image4#\": \"As she walks, Mia notices an elderly man sitting on a bench, sketching the scenery. Intrigued, she approaches him, eager to learn about his artistic journey.\",\n    \"#image5#\": \"The man, named Mr. Thompson, shares tales of his travels and the inspiration behind his art, igniting a spark of creativity in Mia's heart.\",\n    \"#image6#\": \"Inspired, Mia decides to capture the essence of the park through her photography, snapping pictures of the vibrant colors and lively moments around her.\",\n    \"#image7#\": \"Suddenly, a playful dog dashes past her, chasing a frisbee thrown by its owner, and Mia instinctively captures the joyful scene, her heart swelling with happiness.\",\n    \"#image8#\": \"As the sun begins to set, casting a golden glow over the park, Mia finds a quiet spot to reflect on her day, feeling grateful for the connections she made and the beauty she witnessed.\",\n    \"#image9#\": \"With her camera full of memories, Mia heads home, her mind buzzing with ideas for her next project, determined to share the stories of the people and places she encounters.\"\n}\n```"
       },
-      { "type": "image", "content": "images/v_Rafting_g25_0005.jpg" },
-      { "type": "image", "content": "images/v_Rafting_g25_0133.jpg" },
-      { "type": "image", "content": "images/v_Rafting_g25_0001.jpg" },
-      { "type": "image", "content": "images/v_Rafting_g25_0129.jpg" },
       { "type": "video", "content": "v_Rafting_g25" }
     ],
     "predict": {
@@ -120,10 +112,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In a cozy room bathed in soft light, a young musician prepares for a virtual concert. The air is filled with excitement as he adjusts his acoustic guitar, tuning it to perfection. This is not just any performance; it's a special event for his friends and followers, a way to connect through the magic of music.\",\n    \"#image2#\": \"With a confident smile, he begins strumming the first chords, letting the soothing sounds fill the space. Memories flood back of late-night jam sessions and songwriting marathons. Each note he plays tells a story of passion and dedication, a reflection of countless hours spent mastering his craft.\",\n    \"#image3#\": \"As the rhythm intensifies, he looks up, imagining his audience swaying to the beat. This moment is about more than just music; it\u2019s a shared experience, a way to uplift spirits during challenging times. He envisions the faces of friends, family, and fans, each one connecting with the melody in their own unique way.\",\n    \"#image4#\": \"Continuing with fervor, he pours his heart into the performance, creating a bond with the viewers despite the physical distance. The music becomes a bridge, uniting them in joy and nostalgia. Each strum resonates with a promise: that no matter where they are, they can feel together through the power of song.\",\n    \"#image5#\": \"In another scene, he sits in a different"
       },
-      { "type": "image", "content": "images/v_PlayingGuitar_g22_0064.jpg" },
-      { "type": "image", "content": "images/v_PlayingGuitar_g22_0126.jpg" },
-      { "type": "image", "content": "images/v_PlayingGuitar_g22_0188.jpg" },
-      { "type": "image", "content": "images/v_PlayingGuitar_g22_0250.jpg" },
       { "type": "video", "content": "v_PlayingGuitar_g22" }
     ],
     "predict": {
@@ -173,10 +161,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In the bustling atmosphere of a gymnastics competition, a young gymnast takes to the parallel bars. With a determined look, he prepares for his routine, fueled by years of hard work and dedication. The crowd buzzes with anticipation, knowing they are about to witness a remarkable display of skill and artistry.\",\n    \n    \"#image2#\": \"As he grips the bars firmly, he launches into an impressive handstand. The room falls silent, all eyes fixated on him as he defies gravity. This moment represents more than just a routine; it's a culmination of early morning practices, sacrifices, and the relentless pursuit of perfection.\",\n    \n    \"#image3#\": \"With poise and grace, he transitions from the handstand to a series of intricate movements. Each swing and turn is executed flawlessly, showcasing his strength and control. The judges, along with the audience, are mesmerized by his seamless flow, making it clear that he is not just competing but performing.\",\n    \n    \"#image4#\": \"As he prepares for the final element of his routine, the excitement builds. The crowd erupts into cheers, encouraging him to finish strong. He executes a breathtaking dismount, landing with precision and balance. This moment is not just a victory; it's a celebration of resilience and passion.\",\n    \n    \"#image5#\": \"With a triumphant smile, he acknowledges the audience's applause. His heart swells with pride as he realizes"
       },
-      { "type": "image", "content": "images/v_ParallelBars_g13_0005.jpg" },
-      { "type": "image", "content": "images/v_ParallelBars_g13_0167.jpg" },
-      { "type": "image", "content": "images/v_ParallelBars_g13_0003.jpg" },
-      { "type": "image", "content": "images/v_ParallelBars_g13_0165.jpg" },
       { "type": "video", "content": "v_ParallelBars_g13" }
     ],
     "predict": {
@@ -226,10 +210,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In a vibrant playroom filled with colorful toys, a curious baby spots an orange ball rolling across the soft carpet. Intrigued, the baby decides to embark on a little adventure, slowly inching forward on hands and knees, eager to reach the object of fascination.\",\n    \"#image2#\": \"As the baby crawls towards the ball, determination fills their tiny face. Nearby, an older sibling plays, completely unaware of the budding explorer's mission. The intriguing sounds and sights in the room serve as a delightful backdrop to this new journey of discovery.\",\n    \"#image3#\": \"With each little push and wriggle, the baby gains confidence, the ball inching closer. It's a game of patience now, the world below them seemingly vast and mysterious, yet their focus remains sharp on the bright orb that promises joy and play.\",\n    \"#image4#\": \"In a moment of triumph, the baby reaches out, delight sparkling in their eyes as they finally grab hold of the orange ball. It's a small victory, yet in the world of a child, it feels monumental. This little achievement marks another step in their fantastical journey of growth.\",\n    \"#image5#\": \"But the adventure doesn't end here. The baby notices the gate in front of them, a boundary between them and a whole new realm of fun. With sheer determination, they crawl towards it, eager to explore beyond the confines of the familiar play"
       },
-      { "type": "image", "content": "images/v_BabyCrawling_g11_0105.jpg" },
-      { "type": "image", "content": "images/v_BabyCrawling_g11_0102.jpg" },
-      { "type": "image", "content": "images/v_BabyCrawling_g11_0003.jpg" },
-      { "type": "image", "content": "images/v_BabyCrawling_g11_0106.jpg" },
       { "type": "video", "content": "v_BabyCrawling_g11" }
     ],
     "predict": {
@@ -279,10 +259,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In a bustling city, a young artist named Mia sets up her easel in a vibrant park, inspired by the lively atmosphere around her.\",\n    \"#image2#\": \"As she begins to paint, a curious squirrel approaches, intrigued by the bright colors on her palette, adding a touch of whimsy to her creative process.\",\n    \"#image3#\": \"Mia laughs softly, capturing the moment in her artwork, as the squirrel playfully scampers around her feet, creating a delightful distraction.\",\n    \"#image4#\": \"Suddenly, a gentle breeze picks up, rustling the leaves and causing Mia's canvas to sway, reminding her of the unpredictable nature of art and life.\",\n    \"#image5#\": \"Determined, she steadies her canvas and focuses on the scene before her, blending colors to reflect the warmth of the sun and the joy of the day.\",\n    \"#image6#\": \"As she paints, a group of children nearby begins to play, their laughter echoing through the park, inspiring Mia to incorporate their joyful energy into her work.\",\n    \"#image7#\": \"With each stroke, Mia feels a connection to the world around her, her heart swelling with gratitude for the simple pleasures of life and creativity.\",\n    \"#image8#\": \"As the sun begins to set, casting a golden hue over the park, Mia steps back to admire her finished piece, a vibrant reflection of the day's adventures.\",\n    \"#image9#\": \"Feeling accomplished, she packs up her supplies, knowing that this day will inspire her future works, and she leaves the park with a smile, ready for new experiences.\"\n}\n```"
       },
-      { "type": "image", "content": "images/v_SoccerJuggling_g15_0001.jpg" },
-      { "type": "image", "content": "images/v_SoccerJuggling_g15_0599.jpg" },
-      { "type": "image", "content": "images/v_SoccerJuggling_g15_0598.jpg" },
-      { "type": "image", "content": "images/v_SoccerJuggling_g15_0597.jpg" },
       { "type": "video", "content": "v_SoccerJuggling_g15" }
     ],
     "predict": {
@@ -332,10 +308,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In a cozy apartment, a woman is preparing for a special evening. She feels the excitement bubbling inside her as she gears up for her first date with someone she met online. As she stands in front of the mirror, she can\u2019t help but reminisce about the countless messages exchanged, the inside jokes that made her laugh, and the dreamy anticipation of what could be.\",\n    \"#image2#\": \"With a determined expression, she reaches for her makeup kit. Each item represents a different facet of her personality. She knows that tonight she wants to radiate confidence and charm. It's a blend of thrill and anxiety - the perfect recipe for a memorable first impression. She applies her eyeliner with careful precision, imagining how much fun the evening might bring.\",\n    \"#image3#\": \"As she continues to get ready, she catches a glimpse of the beautifully arranged outfits hanging in her closet. Each piece tells a story from her past experiences. Today, she chooses a vibrant dress that feels like a celebration of herself, a reminder that she\u2019s beautiful and deserving of love and happiness, no matter the outcome of the night.\",\n    \"#image4#\": \"The mirror reflects a woman who is shedding her insecurities, piece by piece. With each brushstroke of her makeup, she fortifies herself, embracing the radiant persona she\u2019s crafting. The evening\u2019s agenda is already buzzing in her mind\u2014a quaint little restaurant downtown, laughter over shared appetizers,"
       },
-      { "type": "image", "content": "images/v_ApplyEyeMakeup_g25_0015.jpg" },
-      { "type": "image", "content": "images/v_ApplyEyeMakeup_g25_0015.jpg" },
-      { "type": "image", "content": "images/v_ApplyEyeMakeup_g25_0092.jpg" },
-      { "type": "image", "content": "images/v_ApplyEyeMakeup_g25_0144.jpg" },
       { "type": "video", "content": "v_ApplyEyeMakeup_g25" }
     ],
     "predict": {
@@ -385,10 +357,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In a cozy kitchen, a young woman stands confidently, preparing to showcase her juggling skills. The warm sunlight filters through the window, casting a cheerful glow around the room filled with family photos and memories. Today is special; it's her birthday, and she has decided to surprise her friends with a fun performance.\",\n    \"#image2#\": \"With a determined look, she tosses a bright yellow ball into the air, her heart racing with excitement. As she practices, thoughts of her friends' reactions dance in her mind. She imagines their laughter and cheers, filling the room with joy as she juggles more confidently.\",\n    \"#image3#\": \"Feeling the rhythm, she catches the yellow ball effortlessly, her practice paying off. The kitchen is alive with the sounds of her playful spirit, echoing the love and support from her family who are watching from the doorway, ready to celebrate her big day.\",\n    \"#image4#\": \"As she progresses, she adds a second yellow ball to her routine, testing her skills. The thrill of performance washes over her, and she envisions this moment as the highlight of her birthday party. Each toss and catch symbolizes her growth and dedication to learning something new.\",\n    \"#image5#\": \"With newfound confidence, she introduces a green ball into the mix, creating a vibrant display of color and energy. The kitchen transforms into a stage, and she revels in the moment,"
       },
-      { "type": "image", "content": "images/v_JugglingBalls_g23_0249.jpg" },
-      { "type": "image", "content": "images/v_JugglingBalls_g23_0002.jpg" },
-      { "type": "image", "content": "images/v_JugglingBalls_g23_0249.jpg" },
-      { "type": "image", "content": "images/v_JugglingBalls_g23_0245.jpg" },
       { "type": "video", "content": "v_JugglingBalls_g23" }
     ],
     "predict": {
@@ -438,10 +406,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In a bustling city, a young woman named Mia stands at the edge of a vibrant park, her eyes sparkling with excitement as she prepares for a day of adventure. The sun shines brightly, casting a warm glow on her face, and the sounds of laughter and music fill the air.\",\n    \"#image2#\": \"Mia pulls out her camera, eager to capture the beauty around her. She spots a group of children playing with colorful kites, their laughter echoing as they run freely. Inspired, she snaps a picture, hoping to freeze this joyful moment in time.\",\n    \"#image3#\": \"As she continues her stroll, Mia encounters a street artist painting a mural on a nearby wall. The artist, a middle-aged man with a passion for creativity, invites her to join him. Intrigued, she picks up a brush and adds her own splash of color to the mural, feeling a sense of connection to the art.\",\n    \"#image4#\": \"After a fun-filled painting session, Mia decides to take a break and sits on a nearby bench. She pulls out a sketchbook and begins to draw the scene in front of her, capturing the essence of the park and its lively atmosphere.\",\n    \"#image5#\": \"Suddenly, a friendly dog approaches her, wagging its tail and looking for attention. Mia laughs and pets the dog, enjoying the spontaneous moment of joy. The dog's owner, an elderly man, smiles and shares stories about his adventures with the dog.\",\n    \"#image6#\": \"As the sun begins to set, painting the sky in hues of orange and pink, Mia realizes it's time to head home. She takes one last look at the park, feeling grateful for the day's experiences and the connections she made with strangers who became friends.\",\n    \"#image7#\": \"With her camera full of memories and her heart light, Mia walks away from the park, already planning her next adventure. She knows that every day holds the potential for new stories and beautiful moments, just waiting to be discovered.\"\n}\n```"
       },
-      { "type": "image", "content": "images/v_Shotput_g21_0018.jpg" },
-      { "type": "image", "content": "images/v_Shotput_g21_0115.jpg" },
-      { "type": "image", "content": "images/v_Shotput_g21_0086.jpg" },
-      { "type": "image", "content": "images/v_Shotput_g21_0075.jpg" },
       { "type": "video", "content": "v_Shotput_g21" }
     ],
     "predict": {
@@ -491,10 +455,6 @@
         "type": "text",
         "content": "```json\n{\n    \"#image1#\": \"In the heart of a lush forest, a thrill-seeker named Alex prepares for an exhilarating kayaking adventure. The sun glimmers on the clear waters as Alex adjusts the straps on their bright red kayak, excitement bubbling within them. This day is not just about paddling; it\u2019s about conquering the wild rapids that have always beckoned adventurers.\",\n    \n    \"#image2#\": \"As Alex approaches the first set of rapids, the roar of rushing water fills the air. The camera captures a stunning aerial view of the turbulent waters below. With determination in their eyes, Alex grips the paddle tightly, ready to navigate through the challenging currents, feeling the adrenaline surge as the kayak glides toward the chaos.\",\n    \n    \"#image3#\": \"With skillful strokes, Alex maneuvers the kayak along the edges of the rocky riverbanks, expertly avoiding the jagged stones. The water splashes around them, creating a symphony of nature's music. Each paddle stroke is a dance with the river, a testament to Alex's dedication to mastering this beautiful, yet unpredictable force.\",\n    \n    \"#image4#\": \"Suddenly, the kayak hits a particularly wild wave, and the thrill of the moment is palpable. Water sprays high, and Alex leans forward, embracing the rush. This is what they live for \u2013 the heart-pounding excitement of the adventure, the connection with nature, and the sweet taste of freedom"
       },
-      { "type": "image", "content": "images/v_Kayaking_g23_0087.jpg" },
-      { "type": "image", "content": "images/v_Kayaking_g23_0022.jpg" },
-      { "type": "image", "content": "images/v_Kayaking_g23_0132.jpg" },
-      { "type": "image", "content": "images/v_Kayaking_g23_0153.jpg" },
       { "type": "video", "content": "v_Kayaking_g23" }
     ],
     "predict": {
