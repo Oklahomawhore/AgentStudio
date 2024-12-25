@@ -21,7 +21,7 @@ OpenAIClient = OpenAI(
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 ClaudeClient = OpenAI(
-   api_key=os.getenv("ClaudeClient"), # KEY
+   api_key=os.getenv("CLAUDE_API_KEY"), # KEY
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 
@@ -408,7 +408,7 @@ def decode_result_into_jsonl(result, task_dir, benchmark_file):
         image_path = match.group(1).strip()
         if image_path and os.path.exists(image_path):
             decoded_output.append({
-                "type": "image",
+                "type": "video",
                 "caption": "",  # Add a caption if needed
                 "content": os.path.abspath(image_path)
             })
@@ -530,6 +530,7 @@ def Execute_plan(plan,task, task_dir):
     VDGen = 0
     generated_image_list = []
     generated_video_list = []
+    generated_text_list = []
     for i,step in enumerate(plan):
         Task = step.get("Task", "")
         try:
@@ -563,7 +564,8 @@ def Execute_plan(plan,task, task_dir):
                 input_images = processed_input_images
                 step['Input_images'] = input_images
                 input_text = step.get('Input_text', '')
-                
+                generated_text_list.append(input_text)
+
                 tool_input = {
                     "Input_text": input_text,
                     "Input_images": input_images
@@ -629,6 +631,7 @@ def Execute_plan(plan,task, task_dir):
         try:
             Task = step.get("Task", "")
             input_images = step.get('Input_images', [])
+            input_text = step.get('Input_text', '')
             processed_input_images = []
             for img in input_images:
                 if img is None:
@@ -637,12 +640,12 @@ def Execute_plan(plan,task, task_dir):
                     continue
                 if '<GEN_' in img:
                     # Extract the id from the placeholder
-                    match = re.match(r'<GEN_(\d+)>', img)
+                    match = re.match(r'<GEN_vid(\d+)>', img)
                     if match:
                         id = int(match.group(1))
-                        if id < len(generated_image_list):
-                            processed_input_images.append(generated_image_list[id])
-                            match_gen = re.match(r'<GEN_(\d+)>', generated_image_list[id])
+                        if id < len(generated_video_list):
+                            processed_input_images.append(generated_video_list[id])
+                            match_gen = re.match(r'<GEN_(\d+)>', generated_video_list[id])
                             if match_gen:
                                 print(f"Warning: Nested <GEN> placeholder in step {i+1}.")
                                 
@@ -654,16 +657,37 @@ def Execute_plan(plan,task, task_dir):
                         processed_input_images.append(None)
                 else:
                     processed_input_images.append(img)
+            #Handle text input placeholders
+            processed_text_input = ""
+            if 'GEN_' in input_text:
+                match = re.match(r'<GEN_text(\d+)>', input_text)
+                if match:
+                    id = int(match.group(1))
+                    if id < len(generated_text_list):
+                        processed_text_input = generated_text_list[id]
+                        match_gen = re.match(r'<GEN_(\d+)>', generated_text_list[id])
+                        if match_gen:
+                            print(f"Warning: Nested <GEN> placeholder in step {i+1} for text.")
+                            
+                    else:
+                        print(f"Error: <GEN_{id}> is out of range in generated_text_list.")
+                        processed_text_input = f"<GEN_{id}>"
+                else:
+                    print(f"Error: Invalid placeholder format '{input_text}' in step {i+1}.")
+                    processed_text_input = ""
             input_images = processed_input_images
             step['Input_images'] = input_images
-            
-            if Task == "AddImage":
+            step['Input_text'] = processed_text_input
+
+            if Task == "AddVideo":
                 for img in input_images:
                     result += f"<boi>{img}<eoi>"
                 continue
-            input_text = step.get('Input_text', '')
+            
             if Task == "Caption":
                 print(step['Input_images'])
+                print(step['Input_text'])
+
                 result = handle_caption_step(task_dir,step,result)
                 if step["Output"] is None:
                     error_message = f"Error processing task in step{i+1}: Caption output is None"
@@ -684,8 +708,6 @@ def Execute_plan(plan,task, task_dir):
             print(error_message)
             save_error_file(task_dir, error_message)
             continue
-    for vid in generated_video_list:
-        result += f"<boi>{vid}<eoi>"
     plan_file_final = f"{task_dir}/plan_{task.get('id', '0000')}_final.json"
     result_json = decode_result_into_jsonl(result, task_dir,benchmark_file)
     save_result_json(result_json, task_dir)

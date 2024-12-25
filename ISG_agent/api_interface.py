@@ -92,13 +92,11 @@ def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1):
         "prompt": prompt,
         "seconds_per_screenshot" : seconds_per_screenshot
     }
-    #FIXME: mock data
-    return "video/xxx.mp4"
-    # response = requests.post(url, json=data)
-    # if response.status_code == 200:
-    #     return response.json().get("video_file", "")
-    # else:
-    #     raise Exception(f"Error {response.status_code}: {response.text}")
+    response = requests.post(url, json=data)
+    if response.status_code == 200:
+        return response.json().get("video_file", "")
+    else:
+        raise Exception(f"Error {response.status_code}: {response.text}")
 
 
 def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
@@ -107,13 +105,11 @@ def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
         "prompt": prompt_list,
         "seconds_per_screenshot" : seconds_per_screenshot
     }
-    #FIXME: mock data
-    return "video/xxx.mp4"
-    # response = requests.post(url, json=data)
-    # if response.status_code == 200:
-    #     return response.json().get("video_file", "")
-    # else:
-    #     raise Exception(f"Error {response.status_code}: {response.text}")
+    response = requests.post(url, json=data)
+    if response.status_code == 200:
+        return response.json().get("video_file", "")
+    else:
+        raise Exception(f"Error {response.status_code}: {response.text}")
 
 
 def kling_imggen_agent(prompt):

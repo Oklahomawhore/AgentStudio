@@ -111,11 +111,11 @@ def generate_video_request(data):
 
         # Prepare the data to send in the POST request
         payload = {
-            "model_name": "kling-v1-5",
+            "model_name": "kling-v1",
             "prompt": data['prompt'],
             "negative_prompt": data.get('negative_prompt', ''),
             "cfg_scale": data.get('cfg_scale', 0.5),
-            "mode": data.get('mode', 'pro'),
+            "mode": data.get('mode', 'std'),
             "aspect_ratio": data.get('aspect_ratio', '16:9'),
             "duration": str(data.get('duration', 5)),
             "callback_url": data.get('callback_url', ''),
@@ -224,8 +224,8 @@ def generate_image2video_request(data):
 
         # Prepare the data to send in the POST request
         payload = {
-            "model_name": "kling-v1-5",
-            "mode": data.get('mode', 'pro'),
+            "model_name": "kling-v1",
+            "mode": data.get('mode', 'std'),
             "duration": str(data.get('duration', 5)),
             "image": data['image'],
             "prompt": data['prompt'],

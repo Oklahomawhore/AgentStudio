@@ -23,7 +23,7 @@ OpenAIClient = OpenAI(
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 ClaudeClient = OpenAI(
-   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   api_key=os.getenv("CLAUDE_API_KEY"), # KEY
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 

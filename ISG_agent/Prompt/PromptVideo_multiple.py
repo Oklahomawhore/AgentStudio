@@ -17,15 +17,27 @@ PLANNING_PROMPT="""
 
 - **Step Format**: Each step should be a JSON object containing the following keys:
   - `"Step"`: Sequential step number.
-  - `"Task"`: `"Call_tool"`.
+  - `"Task"`: Category of the given task, should be one of `"Call_tool"` `"AddVideo"` or `"Caption"`.
   - `"Input_text"`: Text input describing the story segment for the video generation tool, in this step EVERY character mentioned should have thier *Character description* included.
   - `"Input_images"`: List of input images if required for the video generation. Use `[]` if no images are required.
   - `"Output"`: Output placeholder (e.g., `<WAIT>`).
 
+- **Task Categories**: Requirements for the task categories
+  - `"Call_tool"` : This category calls a tool agent to act on the given "Input_text" and "Input_images", generating videos for the final results, all the Call_tool step would be executed in order before other steps, generating contents for subsequent usage.
+  - `"AddVideo"` : Given the previous generated video contents, this task adds one of the generated video content in order, the `"Input_images"` would be indicated by "GEN_vid{{ID}}" with ID starting from 0.
+  - `"Caption"` : Given generated storyline in Call_tool steps, this task adds the text part to the final result, with `"Input_text"` containing placeholder like `"<GEN_text{{ID}}>"`, ID indicates the index of generated text, starting from 0.
+
+- **Task Arrangements**:
+  - The number of `"AddVideo"` and `"Caption"` steps should match that of the `"Call_tool"` steps.
+  - If there is generate image steps of `"Call_tool"` i.e. No input images provided in `"Call_tool"` step, then the ID of `"Input_text"` in Caption step should start with the exact index step of NON-Image-Generation step e.g. `"<GEN_text1>"` if there is ONE image generation step, see examples below.
+  - "Input_text" of `"Caption"` step comes from the original plan file and will be handled by external code, so always use placeholer `"<GEN_text{{ID}}>"` for `"Input_text"`.
+  - "Input_images" of `"AddVideo"` tasks comes from the generated videos, so always use placeholders of `"<GEN_vid{{ID}}>"`.
+
+  
 - **Execution Order**:
   - All `"Call_tool"` tasks should be executed sequentially to generate the corresponding video clips.
   - IF there is input image in the prompt, use the image as condition for ALL following video generation.
-  - IF there is *NO* input image in the prompt, first generate an image given descriptions, then condition all subsequent video generation with the generated image, e.g. <gen_img{ID}>
+  - IF there is *NO* input image in the prompt, first generate an image given descriptions, then condition all subsequent video generation with the generated image, e.g. `"<GEN_img{{ID}}"` with ID starting from 0.
 
 *DO NOT* generate more than 3 steps of video generation tool calling.
 
@@ -55,13 +67,15 @@ PLANNING_PROMPT="""
    - Ensure the story progression is logical and consistent across steps.
    - EACH step of `"Call_tool"` with video generation instructions should have their corresponding *Character description*.
    - Select clear instructions for the tool agent such as `"generate a video of the story:"` followed by the story.
+   - Add corresponding numbers of `"AddVideo"` and `"Caption"` steps to produce the final result.
 
 2. **Concise Tool Instructions**:
    - Each `"Call_tool"` task should have clear and focused instructions for generating the corresponding video segment.
 
 3. **Placeholder Usage**:
-   - **Generated Videos**: Use `<gen_vid{ID}>`, where ID starts from 0.
-   - **Generated Images**: Use `<gen_img{ID}>`, where ID starts from 0.
+   - **Generated Videos**: Use `"<GEN_vid{ID}>"`, where ID starts from 0.
+   - **Generated Images**: Use `"<GEN_img{ID}>"`, where ID starts from 0.
+   - **Generated Texts**: Use `"<GEN_text{ID}>"`, where ID starts from 0.
    - **Input Images**: Use `#image{ID}#` with ID starting from 1.
    - **Step Outputs**: Use `<WAIT>` as a placeholder.
 ---
@@ -92,21 +106,63 @@ Output Plan:
         "Step": 2,
         "Task": "Call_tool",
         "Input_text": "Alice, a 34-year-old mother with two kids, has a kind and warm face. She wears a pastel-colored apron over her casual dress and is of European descent with a soft-spoken personality. Professionally, Alice is a homemaker. The video starts with Alice stepping outside her cozy suburban home on a sunny morning. She smiles warmly as she looks at her children playing and begins tending to her vibrant garden.",
-        "Input_images": [<gen_img0>],
+        "Input_images": ["<GEN_img0>"],
         "Output": "<WAIT>"
     },
     {
         "Step": 3,
         "Task": "Call_tool",
         "Input_text": "Alice, a 34-year-old mother with two kids, has a kind and warm face. She wears a pastel-colored apron over her casual dress and is of European descent with a soft-spoken personality. Professionally, Alice is a homemaker. Alice continues gardening, her hands covered in soil as she carefully plants flowers. The scene highlights her nurturing nature, with her kids laughing in the background. Her face reflects joy and serenity as she glances at her children playing with a puppy on the lawn.",
-        "Input_images": [<gen_img0>],
+        "Input_images": ["<GEN_img0>"],
         "Output": "<WAIT>"
     },
     {
         "Step": 4,
         "Task": "Call_tool",
         "Input_text": "Alice, a 34-year-old mother with two kids, has a kind and warm face. She wears a pastel-colored apron over her casual dress and is of European descent with a soft-spoken personality. Professionally, Alice is a homemaker. Alice pauses her gardening to join her children. She sits on the grass, playing with the puppy and laughing with her kids. The video concludes with a wide shot of the family enjoying a peaceful moment together in their garden under the clear blue sky.",
-        "Input_images": [<gen_img0>],
+        "Input_images": ["<GEN_img0>"],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 5,
+        "Task": "AddVideo",
+        "Input_text": "",
+        "Input_images": ["<GEN_vid0>"],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 5,
+        "Task": "AddVideo",
+        "Input_text": "",
+        "Input_images": ["<GEN_vid1>"],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 5,
+        "Task": "AddVideo",
+        "Input_text": "",
+        "Input_images": ["<GEN_vid2>"],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 8,
+        "Task": "Caption",
+        "Input_text": "<GEN_text1>",
+        "Input_images": [],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 9,
+        "Task": "Caption",
+        "Input_text": "<GEN_text2>",
+        "Input_images": [],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 10,
+        "Task": "Caption",
+        "Input_text": "<GEN_text3>",
+        "Input_images": [],
         "Output": "<WAIT>"
     }
 ]
@@ -121,22 +177,64 @@ Output Plan:
     {
         "Step": 1,
         "Task": "Call_tool",
-        "Input_text": "Leo, a 45-year-old African-American firefighter, has a rugged face with a neatly trimmed beard. He wears his firefighter uniform, a helmet, and gloves, embodying strength and dedication. The video begins with Leo at the fire station, calmly preparing his gear as he gets ready for an emergency call. His focus and professionalism are evident as he checks his equipment.",
+        "Input_text": "Leo, a 45-year-old African-American firefighter, has a rugged face with a neatly trimmed beard. He wears his firefighter uniform, including a helmet and gloves, embodying strength and dedication. The video begins with Leo at the fire station, calmly preparing his gear as he gets ready for an emergency call. His focus and professionalism are evident as he checks his equipment and walks confidently toward the fire truck.",
         "Input_images": ["#image1#"],
         "Output": "<WAIT>"
     },
     {
         "Step": 2,
         "Task": "Call_tool",
-        "Input_text": "Leo arrives at the scene of a small neighborhood incident where a kitten is stuck on a high tree branch. Despite the crowd gathering around, Leo maintains his calm demeanor. Wearing his firefighter gear, he climbs the tree carefully to rescue the frightened kitten, with his expression showing both determination and compassion.",
+        "Input_text": "Leo, a 45-year-old African-American firefighter, has a rugged face with a neatly trimmed beard. He wears his firefighter uniform, including a helmet and gloves, embodying strength and dedication. Leo arrives at the scene of a small neighborhood incident where a kitten is stuck on a high tree branch. Despite the crowd gathering around, Leo maintains his calm demeanor. Wearing his firefighter gear, he climbs the tree carefully to rescue the frightened kitten. His expression shows both determination and compassion as he gently coaxes the kitten toward him.",
         "Input_images": ["#image1#"],
         "Output": "<WAIT>"
     },
     {
         "Step": 3,
         "Task": "Call_tool",
-        "Input_text": "After rescuing the kitten, Leo descends the tree and gently hands it to a grateful child. The video ends with Leo removing his helmet, smiling warmly at the child and the cheering crowd, showcasing his heroic and kind-hearted personality.",
+        "Input_text": "Leo, a 45-year-old African-American firefighter, has a rugged face with a neatly trimmed beard. He wears his firefighter uniform, including a helmet and gloves, embodying strength and dedication. After rescuing the kitten, Leo descends the tree with precision and hands it to a grateful child. The crowd cheers as Leo removes his helmet, revealing his warm smile. The video ends with Leo sharing a lighthearted moment with the child and the kitten, showcasing his heroic and kind-hearted personality.",
         "Input_images": ["#image1#"],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 4,
+        "Task": "AddVideo",
+        "Input_text": "",
+        "Input_images": ["<GEN_vid0>"],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 5,
+        "Task": "AddVideo",
+        "Input_text": "",
+        "Input_images": ["<GEN_vid1>"],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 6,
+        "Task": "AddVideo",
+        "Input_text": "",
+        "Input_images": ["<GEN_vid2>"],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 7,
+        "Task": "Caption",
+        "Input_text": "<GEN_text0>",
+        "Input_images": [],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 8,
+        "Task": "Caption",
+        "Input_text": "<GEN_text1>",
+        "Input_images": [],
+        "Output": "<WAIT>"
+    },
+    {
+        "Step": 9,
+        "Task": "Caption",
+        "Input_text": "<GEN_text2>",
+        "Input_images": [],
         "Output": "<WAIT>"
     }
 ]
