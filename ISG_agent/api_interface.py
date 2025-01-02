@@ -1,5 +1,7 @@
 import requests
 from retry import retry
+from typing import Tuple, List
+
 BASE_URL = "http://localhost:7899"
 
 Flux_URL = "http://localhost:7900"
@@ -7,6 +9,8 @@ Flux_URL = "http://localhost:7900"
 MORPH_URL = "http://localhost:7901"
 
 KLING_URL = "http://localhost:7903"
+
+Hunyuan_URL = "http://localhost:7904"
 
 
 @retry(tries=3, delay=1)
@@ -85,8 +89,8 @@ def morph_images_agent(img_path1, img_path2, prompt):
 #KLING Service
 
 
-def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1):
-    url = f"{KLING_URL}/generate_video"  # Backend Flask API endpoint for img2video
+def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1) -> Tuple[str, List[str]]:
+    url = f"{KLING_URL}/generate_image2video"  # Backend Flask API endpoint for img2video
     data = {
         "image": image_url,
         "prompt": prompt,
@@ -94,7 +98,7 @@ def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1):
     }
     response = requests.post(url, json=data)
     if response.status_code == 200:
-        return response.json().get("video_file", "")
+        return response.json().get("video_file", ""), response.json().get("screenshots",[])
     else:
         raise Exception(f"Error {response.status_code}: {response.text}")
 
@@ -107,7 +111,7 @@ def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
     }
     response = requests.post(url, json=data)
     if response.status_code == 200:
-        return response.json().get("video_file", "")
+        return response.json().get("video_file", ""), response.json().get("screenshots",[])
     else:
         raise Exception(f"Error {response.status_code}: {response.text}")
 

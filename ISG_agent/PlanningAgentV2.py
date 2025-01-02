@@ -249,7 +249,7 @@ Given the following previous response text:
 ### **Instructions for Reconstruction**:  
 
 1. **Ensure JSON Compliance**:  
-   - The plan must be formatted as a valid JSON array: `[{"Task":"", ...}, {"Task":"", ...}, ...]`.  
+   - The plan must be formatted as a valid JSON array: `[{{"Task":"", ...}}, {{"Task":"", ...}}, ...]`.  
 
 2. **Correct Misuse of Task Names**:  
    - Replace any invalid Task Names with `"Call_tool"`. Retain the remaining content as-is.
@@ -258,19 +258,19 @@ Given the following previous response text:
    - No `"Call_tool"` step should refer to unsupported tools like Video Generation, 3D Generation, or Image Morph directly.  
    - Decide the appropriate tool for each step:  
      - Add "Use ImageGeneration tool:" to the beginning of `Input_text` when the task is "generate an image".  
-     - Add "Use ImageEdit tool:" for tasks involving "style transfer", "modifying an object", or "adding/removing attributes".  
+     - Add "Use Text2Video_VideoGeneration tool:" to the beginning of `Input_text` when the task is "generate a video" and requires no input images.
+     - Add "Use Image2Video_VdieoGeneration tool:" to the beginning of `Input_text` when the task is "generate a video" and requires input images.
 
-4. **Handle Multiple Steps for Visual Tasks**:  
-   - If multiple `"Call_tool"` steps suggest video/3D/morph generation, split them into smaller steps using ImageGeneration and ImageEdit tools.  
-
-5. **Placeholder Consistency**:  
+4. **Placeholder Consistency**:  
    - Use `#image{{ID}}#` for original input images, starting from 1.  
-   - Use `<GEN_{{ID}}>` for generated images, starting from 0.  
+   - Use `<GEN_img{{ID}}>` for generated images, starting from 0. 
+   - Use `<GEN_vid{{ID}}>` for generated videos, starting from 0.
+   - Use `<GEN_text{{ID}}>` for generated text, starting from 0.
 
-6. **Story Consistency**:  
+5. **Story Consistency**:  
    - For each step, ensure characters are consistently described with unique attributes: face, costumes, age, profession, race, and nationality.  
 
-7. **Output Plan Format**:  
+6. **Output Plan Format**:  
    - Use `"Output": "<WAIT>"` as the placeholder in every step.  
 
 ---
@@ -280,21 +280,22 @@ Given the following previous response text:
 **Example 1** (Simple story with generated images):  
 ```json
 [
-    {
+    {{
         "Step": 1,
         "Task": "Call_tool",
         "Input_text": "Use ImageGeneration tool: Alice, a 34-year-old mother with two kids, has a kind and warm face. She wears a pastel-colored apron over her casual dress and is of European descent with a soft-spoken personality. Professionally, Alice is a homemaker.",
         "Input_images": [],
         "Output": "<WAIT>"
-    },
-    {
+    }},
+    {{
         "Step": 2,
         "Task": "Call_tool",
-        "Input_text": "Use ImageEdit tool: Alice steps outside her cozy suburban home on a sunny morning. She wears her apron and casual dress. Modify her environment to include a vibrant garden and children playing on the lawn.",
-        "Input_images": ["<GEN_0>"],
+        "Input_text": "Alice steps outside her cozy suburban home on a sunny morning. She wears her apron and casual dress. Modify her environment to include a vibrant garden and children playing on the lawn.",
+        "Input_images": ["<GEN_img0>"],
         "Output": "<WAIT>"
-    }
+    }}
 ]
+```
 """
     try:
         completion = OpenAIClient.chat.completions.create(
@@ -545,12 +546,12 @@ def Execute_plan(plan,task, task_dir):
                         continue
                     if '<GEN_' in img:
                         # Extract the id from the placeholder
-                        match = re.match(r'<GEN_(\d+)>', img)
+                        match = re.match(r'<GEN_img(\d+)>', img)
                         if match:
                             id = int(match.group(1))
                             if id < len(generated_image_list):
                                 processed_input_images.append(generated_image_list[id])
-                                match_gen = re.match(r'<GEN_(\d+)>', generated_image_list[id])
+                                match_gen = re.match(r'<GEN_img(\d+)>', generated_image_list[id])
                                 if match_gen:
                                     print(f"Warning: Nested <GEN> placeholder in step {i+1}.")
                             else:
@@ -584,11 +585,8 @@ def Execute_plan(plan,task, task_dir):
                 video = response.get('video', "")
                 if len(images) >= 2:
                     VDGen += 1
-                    if VDGen > 1 or Call_tool_times > 1:
-                        error_message = f"Error: Too many Video Generation or 3D Generation tasks in task {task.get('id', '0000')}"
-                        print(error_message)
-                        save_error_file(task_dir, error_message)
-                        break
+                    # screenshots generated, leave only last image.
+                    images = images[-1:]
                 if len(images) == 0 and video == "":
                     print(f"Warning: No images generated in step {i+1}")
                     error_message = f"Warning: No images generated in step {i+1}"
@@ -608,12 +606,7 @@ def Execute_plan(plan,task, task_dir):
                         step['Output'].append(None)
                 generated_image_list.extend(step['Output'])
                 
-                if video == "":
-                    print(f"Warning: No video generated in step {i+1}")
-                    error_message = f"Warning: No video generated in step {i+1}"
-                    save_error_file(task_dir, error_message)
-                    break
-                else:
+                if not video == "":
                     step['Output'].append(video)
                     generated_video_list.append(video)
                 for i,img in enumerate(generated_image_list):
@@ -645,13 +638,13 @@ def Execute_plan(plan,task, task_dir):
                         id = int(match.group(1))
                         if id < len(generated_video_list):
                             processed_input_images.append(generated_video_list[id])
-                            match_gen = re.match(r'<GEN_(\d+)>', generated_video_list[id])
+                            match_gen = re.match(r'<GEN_vid(\d+)>', generated_video_list[id])
                             if match_gen:
                                 print(f"Warning: Nested <GEN> placeholder in step {i+1}.")
                                 
                         else:
-                            print(f"Error: <GEN_{id}> is out of range in generated_image_list.")
-                            processed_input_images.append(f"<GEN_{id}>")
+                            print(f"Error: <GEN_vid{id}> is out of range in generated_image_list.")
+                            processed_input_images.append(f"<GEN_vid{id}>")
                     else:
                         print(f"Error: Invalid placeholder format '{img}' in step {i+1}.")
                         processed_input_images.append(None)
@@ -710,6 +703,9 @@ def Execute_plan(plan,task, task_dir):
             continue
     plan_file_final = f"{task_dir}/plan_{task.get('id', '0000')}_final.json"
     result_json = decode_result_into_jsonl(result, task_dir,benchmark_file)
+    # Post-process
+
+    
     save_result_json(result_json, task_dir)
     save_plan_json(plan, plan_file_final)
     

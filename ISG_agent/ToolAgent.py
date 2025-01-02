@@ -75,8 +75,8 @@ def process_agent_tool_use(agent_response,data):
                     print(f"Seconds per screenshot: {seconds_per_screenshot}")
 
                     # Calling the kling_img2video_agent with the prepared data
-                    video_url = kling_img2video_agent(data['Input_images'][0], prompt, seconds_per_screenshot)
-                    return {"text": "", "images": [], "video" : video_url}
+                    video_url, screenshots = kling_img2video_agent(data['Input_images'][0], prompt, seconds_per_screenshot)
+                    return {"text": "", "images": screenshots, "video" : video_url}
                 else:
                     raise ValueError("Invalid number of input images, exactly 1 image is required for Image2Video_VideoGeneration")
 
@@ -90,8 +90,8 @@ def process_agent_tool_use(agent_response,data):
                     print(f"Seconds per screenshot: {seconds_per_screenshot}")
 
                     # Calling the kling_text2video_agent with the provided prompt list
-                    video_url = kling_text2video_agent(prompt, seconds_per_screenshot)
-                    return {"text": "", "images": [], "video": video_url}
+                    video_url, screenshots = kling_text2video_agent(prompt, seconds_per_screenshot)
+                    return {"text": "", "images": screenshots, "video": video_url}
                 else:
                     raise ValueError("Text2Video_VideoGeneration does not accept input images, only prompts.")
 
@@ -104,7 +104,7 @@ def process_agent_tool_use(agent_response,data):
 
                 # Calling the kling_imggen_agent with the provided text prompt
                 image = kling_imggen_agent(prompt)
-                return {"text": "", "images": [image]}
+                return {"text": "", "images": [image], "video": ""}
             elif tool_name == "ImageEdit":
                 print("Agent wants to edit an image")
                 prompt = tool_input["prompt"]
