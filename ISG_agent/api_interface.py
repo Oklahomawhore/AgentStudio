@@ -1,6 +1,7 @@
 import requests
 from retry import retry
 from typing import Tuple, List
+from img import test_img
 
 BASE_URL = "http://localhost:7899"
 
@@ -10,7 +11,7 @@ MORPH_URL = "http://localhost:7901"
 
 KLING_URL = "http://localhost:7903"
 
-Hunyuan_URL = "http://localhost:7904"
+Hunyuan_URL = "http://localhost:7905"
 
 
 @retry(tries=3, delay=1)
@@ -90,12 +91,13 @@ def morph_images_agent(img_path1, img_path2, prompt):
 
 
 def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1) -> Tuple[str, List[str]]:
-    url = f"{KLING_URL}/generate_image2video"  # Backend Flask API endpoint for img2video
+    url = f"{Hunyuan_URL}/generate_image2video"  # Backend Flask API endpoint for img2video
     data = {
         "image": image_url,
         "prompt": prompt,
         "seconds_per_screenshot" : seconds_per_screenshot
     }
+    # return "videos/ChGIFWdqfWwAAAAAAAqcQg-0_raw_video_1.mp4", [test_img]
     response = requests.post(url, json=data)
     if response.status_code == 200:
         return response.json().get("video_file", ""), response.json().get("screenshots",[])
@@ -104,11 +106,12 @@ def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1) -> Tuple[
 
 
 def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
-    url = f"{KLING_URL}/generate_video"  # Backend Flask API endpoint for text2video
+    url = f"{Hunyuan_URL}/generate_video"  # Backend Flask API endpoint for text2video
     data = {
         "prompt": prompt_list,
         "seconds_per_screenshot" : seconds_per_screenshot
     }
+    # return "videos/ChGIFWdqfWwAAAAAAAqcQg-0_raw_video_1.mp4", [test_img]
     response = requests.post(url, json=data)
     if response.status_code == 200:
         return response.json().get("video_file", ""), response.json().get("screenshots",[])

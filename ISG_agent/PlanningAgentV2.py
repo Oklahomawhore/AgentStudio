@@ -11,6 +11,9 @@ from openai import OpenAI
 from anthropic import  Anthropic
 import http.client
 import dotenv
+import replicate
+import oss2, requests
+import uuid
 
 dotenv.load_dotenv()
 
@@ -255,11 +258,11 @@ Given the following previous response text:
    - Replace any invalid Task Names with `"Call_tool"`. Retain the remaining content as-is.
 
 3. **Enforce Tool Usage Restrictions**:  
-   - No `"Call_tool"` step should refer to unsupported tools like Video Generation, 3D Generation, or Image Morph directly.  
+   - No More than one ImageGeneration tool can be used in the plan.
    - Decide the appropriate tool for each step:  
-     - Add "Use ImageGeneration tool:" to the beginning of `Input_text` when the task is "generate an image".  
-     - Add "Use Text2Video_VideoGeneration tool:" to the beginning of `Input_text` when the task is "generate a video" and requires no input images.
-     - Add "Use Image2Video_VdieoGeneration tool:" to the beginning of `Input_text` when the task is "generate a video" and requires input images.
+     - Add "Use ImageGeneration tool:" to the beginning of `Input_text` when the task has no input images.  
+     - Add "Use Text2Video_VideoGeneration tool:" to the beginning of `Input_text` when there is *NO* Input_images and it is not the first Call_tool step.
+     - Add "Use Image2Video_VdieoGeneration tool:" to the beginning of `Input_text` when the task is Input_images.
 
 4. **Placeholder Consistency**:  
    - Use `#image{{ID}}#` for original input images, starting from 1.  
@@ -292,6 +295,34 @@ Given the following previous response text:
         "Task": "Call_tool",
         "Input_text": "Alice steps outside her cozy suburban home on a sunny morning. She wears her apron and casual dress. Modify her environment to include a vibrant garden and children playing on the lawn.",
         "Input_images": ["<GEN_img0>"],
+        "Output": "<WAIT>"
+    }},
+    {{
+        "Step": 3,
+        "Task": "Call_tool",
+        "Input_text": "Alice prepares a picnic basket with fresh fruits and sandwiches for her children. She smiles warmly as she watches them play.",
+        "Input_images": ["<GEN_img1>"],
+        "Output": "<WAIT>"
+    }},
+    {{
+        "Step": 4,
+        "Task": "Call_tool",
+        "Input_text": "Alice sits on a picnic blanket with her children, enjoying a sunny afternoon together.",
+        "Input_images": ["<GEN_img2>"],
+        "Output": "<WAIT>"
+    }},
+    {{
+        "Step": 5,
+        "Task": "Call_tool",
+        "Input_text": "Alice and her children share a meal together, laughing and enjoying the sunny day.",
+        "Input_images": ["<GEN_img3>"],
+        "Output": "<WAIT>"
+    }},
+    {{
+        "Step": 6,
+        "Task": "AddVideo",
+        "Input_text": "Alice and her children clean up after the picnic, putting away the picnic basket and blanket.",
+        "Input_images": ["<GEN_img4>"],
         "Output": "<WAIT>"
     }}
 ]
@@ -500,6 +531,64 @@ def handle_caption_step(task_dir,step,result):
         result += error_message
     return result
 
+def upload_video(video_path, upload_url):
+    """
+    Upload a video file to a hosting service and return the URL of the uploaded file.
+    """
+
+    endpoint = 'http://oss-cn-shanghai.aliyuncs.com' # Suppose that your bucket is in the Hangzhou region.
+
+    auth = oss2.Auth(os.getenv('ALIYUN_ACCESS_KEY_ID'), os.getenv('ALIYUN_ACCESS_KEY_SECRET'))
+    bucket = oss2.Bucket(auth, endpoint, 'video-storage-6999')
+    key = video_path.split("/")[-1]
+
+    rs = bucket.put_object_from_file(key, video_path)
+
+    if rs.status == 200:
+        print(f"Uploaded video to OSS: {key}")
+    
+        return f"https://video-storage-6999.oss-cn-shanghai.aliyuncs.com/{key}"
+    else:
+        print(f"Error uploading video to OSS: {rs.status}")
+        return None
+
+def handle_audio_addition(video_path, task_dir, step, result):
+    """
+    Handles video-to-audio generation by:
+    - Uploading the video to a hosting service.
+    - Running the Replicate API for video-to-audio generation.
+    - Saving the returned video to disk.
+    """
+    # Upload the video to a hosting service
+    uploaded_video_url = upload_video(video_path, "")
+    print(f"Uploaded video URL: {uploaded_video_url}")
+
+    # Prepare input for Replicate API
+    input_data = {
+        "video": uploaded_video_url,
+        "prompt": step.get("Input_text", ""),
+        "duration": 5,
+        "negative_prompt": "conversation"
+    }
+
+    # Call Replicate API
+    output_url = replicate.run(
+        "zsxkib/mmaudio:4b9f801a167b1f6cc2db6ba7ffdeb307630bf411841d4e8300e63ca992de0be9",
+        input=input_data
+    )
+    
+    # Download and save the output video
+    key = video_path.split("/")[-1]
+    output_video_path = os.path.join(task_dir, f"{key.split('.')[0]}_with_audio.mp4")
+
+    response = requests.get(output_url, stream=True)
+    response.raise_for_status()  # Ensure the request was successful
+    with open(output_video_path, "wb") as file:
+        for chunk in response.iter_content(chunk_size=8192):
+            file.write(chunk)
+
+    print(f"Generated video with audio saved to: {output_video_path}")
+    return output_video_path
 
 def extract_structure(benchmark):
 
@@ -673,7 +762,10 @@ def Execute_plan(plan,task, task_dir):
             step['Input_text'] = processed_text_input
 
             if Task == "AddVideo":
+                # add audio to video input
                 for img in input_images:
+                    # call v2a model for audio addition
+                    img = handle_audio_addition(img, task_dir, step, result)
                     result += f"<boi>{img}<eoi>"
                 continue
             
@@ -743,10 +835,10 @@ def main():
                 messages, Dict, Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
 
                 completion = OpenAIClient.chat.completions.create(
-                    model='gpt-4o',
+                    model='gpt-4o-2024-08-06',
                     messages=messages,
-                    max_tokens=4096,
-                    temperature=0.5
+                    max_completion_tokens=4096,
+                    temperature=0.7
                 )
                 response_text = completion.choices[0].message.content
                 try:
@@ -763,7 +855,7 @@ def main():
                 
                 completion = ClaudeClient.chat.completions.create(
                     model = "claude-3-5-sonnet-20240620",
-                    max_tokens=8192,
+                    max_completion_tokens=8192,
                     messages=messages,
                     temperature=0.7,
                 )

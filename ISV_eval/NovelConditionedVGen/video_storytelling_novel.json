@@ -1,0 +1,99 @@
+[
+    {
+      "id": "0000",
+      "Category": "Video Storytelling",
+      "Query": [
+        {
+          "type": "text",
+          "content": "请用视频描述一个这样的故事： 唐纳德特朗正在台上激情演讲关于美国梦的故事，这时奥巴马突然在台下喊道：'该死！别听这个人的！他是中国共产党的卧底！'，台上的特朗普一脸尴尬，台下的观众哗然，这时习近平总书记一个箭步冲上台，将一枚共和国勋章别在特朗普的身上，特朗普无奈的笑了一下说：'我有罪，但是只有共产党才能救美国。'，台下观众沸腾了，远处飘扬起了五星红旗。"
+        }
+      ],
+      "Golden": [
+        {
+          "type": "text",
+          "content": "```json\n{\n    \"#image1#\": \"In a cozy, dimly lit room, a young writer sits at their desk, fingers poised over the keyboard, ready to embark on a creative journey. The air is filled with anticipation as they prepare to weave together a tale that has been brewing in their mind.\",\n    \"#image2#\": \"As the first words begin to flow, the writer feels a surge of inspiration. Thoughts race through their mind, jumping from one idea to another like a spark igniting a flame. Each keystroke resonates with a sense of purpose and excitement, as they dive deeper into their narrative.\",\n    \"#image3#\": \"With each passing moment, the story evolves, characters coming to life with vivid personalities and intricate backstories. The writer's passion radiates through the clattering of keys, creating a symphony of creativity that fills the room, drowning out the outside world.\",\n    \"#image4#\": \"Suddenly, a moment of doubt creeps in. The writer pauses, fingers hovering above the keyboard as they contemplate the direction of their story. But after a brief moment of reflection, determination takes over, and they dive back into the flow, ready to conquer the challenges ahead.\",\n    \"#image5#\": \"With renewed vigor, the writer's fingers dance across the keyboard, sentences forming like magic. The story unfolds with unexpected twists and turns, captivating the writer's imagination and compelling them to push forward, eager to reach the conclusion"
+        },
+        { "type": "video", "content": "v_Typing_g22" }
+      ],
+      "predict": {
+        "input": "I will give you a picture of a person in a scenario. <image1> Please use a combination of 4 images and text to show what will happen next. Please generate an overall description first, then directly generate adjacent image blocks.\n (the caption of the <query_img1> is: \"```json\n{\n    \"#image1#\": \"In a cozy, dimly lit room, a young writer sits at their desk, fingers poised over the keyboard, ready to embark on a creative journey. The air is filled with anticipation as they prepare to weave together a tale that has been brewing in their mind.\",\n    \"#image2#\": \"As the first words begin to flow, the writer feels a surge of inspiration. Thoughts race through their mind, jumping from one idea to another like a spark igniting a flame. Each keystroke resonates with a sense of purpose and excitement, as they dive deeper into their narrative.\",\n    \"#image3#\": \"With each passing moment, the story evolves, characters coming to life with vivid personalities and intricate backstories. The writer's passion radiates through the clattering of keys, creating a symphony of creativity that fills the room, drowning out the outside world.\",\n    \"#image4#\": \"Suddenly, a moment of doubt creeps in. The writer pauses, fingers hovering above the keyboard as they contemplate the direction of their story. But after a brief moment of reflection, determination takes over, and they dive back into the flow, ready to conquer the challenges ahead.\",\n    \"#image5#\": \"With renewed vigor, the writer's fingers dance across the keyboard, sentences forming like magic. The story unfolds with unexpected twists and turns, captivating the writer's imagination and compelling them to push forward, eager to reach the conclusion\") ",
+        "structural": {
+          "Query": ["<query_text1>", "<query_img1>"],
+          "Answer": [
+            "<gen_text1>",
+            "<gen_img1>",
+            "<gen_img2>",
+            "<gen_img3>",
+            "<gen_img4>"
+          ]
+        },
+        "block_tuple": {
+          "Thought": "Analyze the given prompt to understand the relationships between the elements mentioned, focusing on the sequence and the description provided.",
+          "relation": [
+            ["<gen_text1>", "<query_img1>", "describes the overall action of"],
+            [
+              "<gen_img1>",
+              "<query_img1>",
+              "is the starting point of the sequence"
+            ],
+            ["<gen_img2>", "<gen_img1>", "is the next image in the sequence"],
+            [
+              "<gen_img3>",
+              "<gen_img2>",
+              "is semantically consistent to the next step"
+            ],
+            ["<gen_img4>", "<gen_img3>", "is the final image in the sequence"]
+          ]
+        }
+      }
+    },
+    {
+      "id": "0001",
+      "Category": "Video Storytelling",
+      "Query": [
+        {
+          "type": "text",
+          "content": "请用视频描述一个这样的故事：村里的精神小伙，一个瘦巴巴柔弱的人，准备到一户人家里相亲，见他那个日思夜想的美丽女子。他提着一盒礼品，从一个农村院子的门口走进来，对里面正在剥花生的大娘说，大娘，在剥罗森（河南话，就是花生的意思）呢？，并从兜里掏出一盒烟准备让给大娘，大娘婉拒道，不抽不抽，我不会。"
+        }
+      ],
+      "Golden": [
+        {
+          "type": "text",
+          "content": "```json\n{\n    \"#image1#\": \"In a bustling city, a young woman named Mia stands at the edge of a vibrant park, her eyes sparkling with excitement as she prepares for a day of adventure.\",\n    \"#image2#\": \"Mia pulls out her camera, a cherished gift from her late grandfather, and takes a moment to adjust the settings, reminiscing about the countless stories he captured through his lens.\",\n    \"#image3#\": \"With a deep breath, she steps onto a winding path, surrounded by blooming flowers and the laughter of children playing nearby, feeling a sense of freedom and joy.\",\n    \"#image4#\": \"As she walks, Mia notices an elderly man sitting on a bench, sketching the scenery. Intrigued, she approaches him, eager to learn about his artistic journey.\",\n    \"#image5#\": \"The man, named Mr. Thompson, shares tales of his travels and the inspiration behind his art, igniting a spark of creativity in Mia's heart.\",\n    \"#image6#\": \"Inspired, Mia decides to capture the essence of the park through her photography, snapping pictures of the vibrant colors and lively moments around her.\",\n    \"#image7#\": \"Suddenly, a playful dog dashes past her, chasing a frisbee thrown by its owner, and Mia instinctively captures the joyful scene, her heart swelling with happiness.\",\n    \"#image8#\": \"As the sun begins to set, casting a golden glow over the park, Mia finds a quiet spot to reflect on her day, feeling grateful for the connections she made and the beauty she witnessed.\",\n    \"#image9#\": \"With her camera full of memories, Mia heads home, her mind buzzing with ideas for her next project, determined to share the stories of the people and places she encounters.\"\n}\n```"
+        },
+        { "type": "video", "content": "v_Rafting_g25" }
+      ],
+      "predict": {
+        "input": "I will give you a picture of a person in a scenario. <image1> Please use a combination of 4 images and text to show what will happen next. Please generate an overall description first, then directly generate adjacent image blocks.\n (the caption of the <query_img1> is: \"```json\n{\n    \"#image1#\": \"In a bustling city, a young woman named Mia stands at the edge of a vibrant park, her eyes sparkling with excitement as she prepares for a day of adventure.\",\n    \"#image2#\": \"Mia pulls out her camera, a cherished gift from her late grandfather, and takes a moment to adjust the settings, reminiscing about the countless stories he captured through his lens.\",\n    \"#image3#\": \"With a deep breath, she steps onto a winding path, surrounded by blooming flowers and the laughter of children playing nearby, feeling a sense of freedom and joy.\",\n    \"#image4#\": \"As she walks, Mia notices an elderly man sitting on a bench, sketching the scenery. Intrigued, she approaches him, eager to learn about his artistic journey.\",\n    \"#image5#\": \"The man, named Mr. Thompson, shares tales of his travels and the inspiration behind his art, igniting a spark of creativity in Mia's heart.\",\n    \"#image6#\": \"Inspired, Mia decides to capture the essence of the park through her photography, snapping pictures of the vibrant colors and lively moments around her.\",\n    \"#image7#\": \"Suddenly, a playful dog dashes past her, chasing a frisbee thrown by its owner, and Mia instinctively captures the joyful scene, her heart swelling with happiness.\",\n    \"#image8#\": \"As the sun begins to set, casting a golden glow over the park, Mia finds a quiet spot to reflect on her day, feeling grateful for the connections she made and the beauty she witnessed.\",\n    \"#image9#\": \"With her camera full of memories, Mia heads home, her mind buzzing with ideas for her next project, determined to share the stories of the people and places she encounters.\"\n}\n```\") ",
+        "structural": {
+          "Query": ["<query_text1>", "<query_img1>"],
+          "Answer": [
+            "<gen_text1>",
+            "<gen_img1>",
+            "<gen_img2>",
+            "<gen_img3>",
+            "<gen_img4>"
+          ]
+        },
+        "block_tuple": {
+          "Thought": "Analyze the given prompt to understand the relationships between the elements mentioned, focusing on the sequence and the description provided.",
+          "relation": [
+            ["<gen_text1>", "<query_img1>", "describes the overall action of"],
+            [
+              "<gen_img1>",
+              "<query_img1>",
+              "is the starting point of the sequence"
+            ],
+            ["<gen_img2>", "<gen_img1>", "is the next image in the sequence"],
+            [
+              "<gen_img3>",
+              "<gen_img2>",
+              "is semantically consistent to the next step"
+            ],
+            ["<gen_img4>", "<gen_img3>", "is the final image in the sequence"]
+          ]
+        }
+      }
+    }
+  ]
+  

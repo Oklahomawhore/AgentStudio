@@ -5,7 +5,8 @@ from flask import Flask, request, jsonify
 from threading import Lock
 import dotenv
 import os
-from util import download_video_and_save_as_mp4
+from util import download_video_and_save_as_mp4, process_image, add_fix_to_filename
+import base64
 
 dotenv.load_dotenv()
 
@@ -153,12 +154,21 @@ def generate_image2video_request(data):
             'Content-Type': 'application/json'
         }
 
+        try:
+            process_image(data["image"], add_fix_to_filename(data["image"], "processed"))
+        except Exception as e:
+            raise Exception(f"Error in processing image: {e}")
+        # Read the file in binary mode and encode it to Base64
+        with open(data['image'], "rb") as image_file:
+            base64_encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
+
+        
         # Prepare the data to send in the POST request
         payload = {
             "model_name": "kling-v1",
             "mode": data.get('mode', 'std'),
             "duration": str(data.get('duration', 5)),
-            "image": data['image'],
+            "image": base64_encoded_image,
             "prompt": data['prompt'],
             "cfg_scale": data.get('cfg_scale', 0.5),
             "static_mask": data.get('static_mask', ''),
