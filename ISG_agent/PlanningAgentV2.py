@@ -1,7 +1,8 @@
 import os
 import json
 from argparse import ArgumentParser
-from Prompt.PromptVideo_multiple import PLANNING_PROMPT
+from Prompt.New_system import PLANNING_PROMPT
+from Prompt.New_planning import PREPRODUCTION_PROMPTS
 import base64
 from tqdm import tqdm
 import re
@@ -14,6 +15,10 @@ import dotenv
 import replicate
 import oss2, requests
 import uuid
+from production import gen_img, generate_all
+from typing import DefaultDict
+from PIL import Image
+import glob
 
 dotenv.load_dotenv()
 
@@ -46,9 +51,9 @@ def load_input_json(json_file:str):
 def save_plan_json(json_data,file):
     dir_name = os.path.dirname(file)
     print(f"Directory: {dir_name}")
-    os.makedirs(f"{dir_name}", exist_ok=True)
-    with open(file, 'w') as f:
-        json.dump(json_data, f, indent=4)
+    os.makedirs(dir_name, exist_ok=True)
+    with open(file, 'w', encoding='utf-8') as f:
+        json.dump(json_data, f, indent=4, ensure_ascii=False)
 
 def save_result_json(json_data,task_dir):
     os.makedirs(task_dir, exist_ok=True)
@@ -217,6 +222,36 @@ def preprocess_task(task, task_dir, plan_model):
         ]
         
         return messages, Dict, Dict_for_plan
+def transform_character_descriptions(data):
+    """
+    Transforms a nested dictionary into a flat dictionary where each key maps to 
+    a concatenated string of all string values in its sub-structure.
+
+    Args:
+        data (dict): Input nested dictionary.
+
+    Returns:
+        dict: Transformed dictionary with concatenated string descriptions.
+    """
+    result = {}
+
+    def recursive_concatenate(value):
+        concatenated = ""
+        if isinstance(value, dict):
+            # Recursively process sub-dictionaries
+            for sub_value in value.values():
+                concatenated += recursive_concatenate(sub_value)
+        elif isinstance(value, str):
+            # Concatenate string values
+            concatenated += value + " "
+        return concatenated
+
+    # Process each top-level key
+    for key, value in data.items():
+        result[key] = recursive_concatenate(value).strip()  # Remove trailing space
+
+    return result
+
 
 def double_check(task_dir,task_content,structure,response_text,error_message):
     """
@@ -363,8 +398,78 @@ Given the following previous response text:
             raise ValueError("Error calling API")
     return response_text
 
+def extract_json_from_response(json_text):
+    response_text = json_text.strip()
+    start_index = response_text.find('{')
+    if start_index == -1:
+        raise ValueError("No valid JSON found in the response")
 
-def extract_plan_from_response(response_text, plan_file):
+    # Find the position of the last closing bracket ']'
+    open_brackets = 0
+    end_index = start_index
+    for idx in range(start_index, len(response_text)):
+        if response_text[idx] == '{':
+            open_brackets += 1
+        elif response_text[idx] == '}':
+            open_brackets -= 1
+            if open_brackets == 0:
+                end_index = idx + 1  # include the closing bracket
+                break
+    
+    json_text = response_text[start_index:end_index]
+    return json_text
+
+import re
+
+def extract_character_from_content(content):
+    """
+    Extract all matched character names from the content.
+    Supports both <#character_name#> and <character_name> patterns.
+
+    Args:
+        content (str): The input string containing character references.
+
+    Returns:
+        list: A list of matched character names.
+    """
+    # Regex pattern to match <#character_name#> or <character_name>
+    pattern = r"<#(.*?)#>|<(.*?)>"
+
+    # Find all matched character names
+    matches = re.findall(pattern, content)
+
+    # Extract character names from matched groups
+    matched_characters = [match[0] or match[1] for match in matches]
+
+    return matched_characters
+
+
+def replace_characters_in_content(content, characters):
+    """
+    Replace all character references in the content with their descriptions.
+    Supports both <#character_name#> and <character_name> patterns.
+
+    Args:
+        content (str): The input string containing character references.
+        characters (dict): A dictionary mapping character names to descriptions.
+
+    Returns:
+        str: The content with character references replaced by descriptions.
+    """
+    # Regex pattern to match <#character_name#> or <character_name>
+    pattern = r"<#(.*?)#>|<(.*?)>"
+
+    # Function to replace the matched pattern with the description
+    def replace(match):
+        # Extract the character name from either group
+        character_name = match.group(1) or match.group(2)
+        # Replace with the description or keep the original pattern if not found
+        return f"{character_name} ({characters.get(character_name, f'<{character_name}>')})"
+
+    # Use re.sub to replace all occurrences of the pattern
+    return re.sub(pattern, replace, content)
+
+def extract_plan_from_response(response_text, plan_file,characters={}):
     """
     Extracts the first valid JSON object or array from the response text and saves it to a file.
     
@@ -375,28 +480,63 @@ def extract_plan_from_response(response_text, plan_file):
     Raises:
         ValueError: If no valid JSON is found in the response text.
     """
-    response_text = response_text.strip()
-    start_index = response_text.find('[')
-    if start_index == -1:
-        raise ValueError("No valid JSON found in the response")
-
-    # Find the position of the last closing bracket ']'
-    open_brackets = 0
-    end_index = start_index
-    for idx in range(start_index, len(response_text)):
-        if response_text[idx] == '[':
-            open_brackets += 1
-        elif response_text[idx] == ']':
-            open_brackets -= 1
-            if open_brackets == 0:
-                end_index = idx + 1  # include the closing bracket
-                break
     
-    json_text = response_text[start_index:end_index]
+    json_text = extract_json_from_response(response_text)
 
     try:
         extracted_json = json.loads(json_text)
-        save_plan_json(extracted_json, plan_file)
+        # chuncate video if scene more than 5, add corresponding AddVideo and Caption steps.
+        steps = []
+        step_num = 1
+        for scene_num, scene in extracted_json.items():
+            # truncate if duration is more than 5
+            if scene['duration'] > 5:
+                # trucate to 5d steps rounding up, break content into even characters
+                num_steps = (scene['duration'] + 4) // 5
+                for i in range(num_steps):
+                    steps.append({
+                        "Step": step_num,
+                        "Task": "GenVideo",
+                        "Input_text": f"Generate video:{scene['scene']} {scene['style']} {scene['motion']} {scene['content'][i*(len(scene['content']) // num_steps):(i+1)*(len(scene['content']) // num_steps)]}",
+                        "Music_prompt" : scene['music'],
+                        "TTS_prompt" : scene['dialogue'],
+                        "Input_images": [],
+                        "Output": "<WAIT>"
+                    },)
+                    step_num += 1
+                    
+            else:
+                # only one step
+                steps.append({
+                    "Step": step_num,
+                    "Task": "GenVideo",
+                    "Input_text": f"Generate video:{scene['scene']} {scene['style']} {scene['motion']} {scene['content']}",
+                    "Music_prompt" : scene['music'],
+                    "TTS_prompt" : scene['dialogue'],
+                    "Input_images": [],
+                    "Output": "<WAIT>"
+                },)
+                step_num += 1
+
+        # for idx, step in enumerate(steps.copy()):
+        #     if step['Task'] == "Call_tool" and step['Input_text'].startswith("Generate video:"):
+        #         steps.append({
+        #             "Step": step_num,
+        #             "Task": "AddVideo",
+        #             "Input_text": step['Input_text'],
+        #             "Input_images": [f"<GEN_vid{idx}>"],
+        #             "Output": "<WAIT>"
+        #         },)
+        #         step_num += 1
+        #         steps.append({
+        #             "Step": step_num,
+        #             "Task": "Caption",
+        #             "Input_text": step['Input_text'],
+        #             "Input_images": [],
+        #             "Output": "<WAIT>"
+        #         },)
+        #         step_num += 1
+        save_plan_json(steps, plan_file)
         print(f"JSON extracted and saved to {plan_file}")
     except json.JSONDecodeError as e:
         raise ValueError(f"No valid JSON found in the response: {str(e)}")
@@ -612,194 +752,64 @@ def extract_structure(benchmark):
     "Answer_str": " ".join(golden_list)
     }
     
-def Execute_plan(plan,task, task_dir):
+def Execute_plan(plan,task, task_dir, characters={}):
     if os.path.exists(f"{task_dir}/error.log"):
         return
+    
+    
     result = ""
-    Call_tool_times = 0
-    VDGen = 0
-    generated_image_list = []
-    generated_video_list = []
-    generated_text_list = []
+    character_img = DefaultDict()
+
+    if os.path.exists(f"{task_dir}/characters_img.json"):
+        with open(f"{task_dir}/characters_img.json", "r") as f:
+            character_img = json.load(f)
+    else:
+        for character_name, character_description in characters.items():
+            print(f"Character: {character_name} - {character_description}")
+            img = gen_img(character_description)
+            image_bytes = base64.b64decode(img)
+            with open(f"{task_dir}/{character_name}.png", "wb") as f:
+                f.write(image_bytes)
+            character_img[character_name] = f"{task_dir}/{character_name}.png"
+        with open(f"{task_dir}/characters_img.json", "w", encoding='utf-8') as f:
+            json.dump(character_img, f, indent=4,ensure_ascii=False)
+
+    # Generate characters for story
+
+    video_tasks = []
+    music_tasks = []
+    tts_tasks = []
     for i,step in enumerate(plan):
         Task = step.get("Task", "")
-        try:
-            if Task == "Call_tool":
-                Call_tool_times += 1
-                input_images = step.get('Input_images', [])
-                processed_input_images = []
-                for img in input_images:
-                    if img is None:
-                        print(f"Warning: None image encountered in step {i+1}.")
-                        processed_input_images.append(None)
-                        continue
-                    if '<GEN_' in img:
-                        # Extract the id from the placeholder
-                        match = re.match(r'<GEN_img(\d+)>', img)
-                        if match:
-                            id = int(match.group(1))
-                            if id < len(generated_image_list):
-                                processed_input_images.append(generated_image_list[id])
-                                match_gen = re.match(r'<GEN_img(\d+)>', generated_image_list[id])
-                                if match_gen:
-                                    print(f"Warning: Nested <GEN> placeholder in step {i+1}.")
-                            else:
-                                print(f"Error: <GEN_{id}> is out of range in generated_image_list.")
-                                processed_input_images.append(f"<GEN_{id}>")
-                        else:
-                            print(f"Error: Invalid placeholder format '{img}' in step {i+1}.")
-                            processed_input_images.append(None)
-                    else:
-                        processed_input_images.append(img)
-                input_images = processed_input_images
-                step['Input_images'] = input_images
-                input_text = step.get('Input_text', '')
-                generated_text_list.append(input_text)
-
-                tool_input = {
-                    "Input_text": input_text,
-                    "Input_images": input_images
-                }
-                tool_input_json = json.dumps(tool_input)
-                try:
-                    response = tool_agent(tool_input_json, Task)
-                except Exception as e:
-                    print(f"Error calling tool_agent for task '{Task}' in step {i+1}: {e}")
-                    error_message = f"Error processing task in step{i+1}: {str(e)}"
-                    # print(error_message)
-                    save_error_file(task_dir, error_message)
-                    response = {'text': '', 'images': [], 'video': ""} 
-                step['Output'] = []
-                images = response.get('images', [])
-                video = response.get('video', "")
-                if len(images) >= 2:
-                    VDGen += 1
-                    # screenshots generated, leave only last image.
-                    images = images[-1:]
-                if len(images) == 0 and video == "":
-                    print(f"Warning: No images generated in step {i+1}")
-                    error_message = f"Warning: No images generated in step {i+1}"
-                    save_error_file(task_dir, error_message)
-                    break
-                for j, img_base64 in enumerate(images):
-                    image_filename = f"image_step_{i+1}_{j+1}.png"
-                    image_path = os.path.join(task_dir, image_filename)
-                    try:
-                        with open(image_path, 'wb') as f:
-                            f.write(base64.b64decode(img_base64))
-                        step['Output'].append(image_path)
-                    except Exception as e:
-                        print(f"Error saving image file: {e}")
-                        error_message = f"Error saving image file: {e}"
-                        save_error_file(task_dir, error_message)
-                        step['Output'].append(None)
-                generated_image_list.extend(step['Output'])
-                
-                if not video == "":
-                    step['Output'].append(video)
-                    generated_video_list.append(video)
-                for i,img in enumerate(generated_image_list):
-                    if img is None:
-                        generated_image_list[i] = f"<GEN_{i}>"
-                        
-        except Exception as e:
-            print(f"Error processing step {i+1}: {str(e)}")
-            error_message = f"Error processing task in step{i+1}: {str(e)}"
-            print(error_message)
-            save_error_file(task_dir, error_message)
-            continue
-    
-    for i, step in enumerate(plan):
-        try:
-            Task = step.get("Task", "")
-            input_images = step.get('Input_images', [])
-            input_text = step.get('Input_text', '')
-            processed_input_images = []
-            for img in input_images:
-                if img is None:
-                    print(f"Warning: None image encountered in step {i+1}.")
-                    processed_input_images.append(None)
-                    continue
-                if '<GEN_' in img:
-                    # Extract the id from the placeholder
-                    match = re.match(r'<GEN_vid(\d+)>', img)
-                    if match:
-                        id = int(match.group(1))
-                        if id < len(generated_video_list):
-                            processed_input_images.append(generated_video_list[id])
-                            match_gen = re.match(r'<GEN_vid(\d+)>', generated_video_list[id])
-                            if match_gen:
-                                print(f"Warning: Nested <GEN> placeholder in step {i+1}.")
-                                
-                        else:
-                            print(f"Error: <GEN_vid{id}> is out of range in generated_image_list.")
-                            processed_input_images.append(f"<GEN_vid{id}>")
-                    else:
-                        print(f"Error: Invalid placeholder format '{img}' in step {i+1}.")
-                        processed_input_images.append(None)
-                else:
-                    processed_input_images.append(img)
-            #Handle text input placeholders
-            processed_text_input = ""
-            if 'GEN_' in input_text:
-                match = re.match(r'<GEN_text(\d+)>', input_text)
-                if match:
-                    id = int(match.group(1))
-                    if id < len(generated_text_list):
-                        processed_text_input = generated_text_list[id]
-                        match_gen = re.match(r'<GEN_(\d+)>', generated_text_list[id])
-                        if match_gen:
-                            print(f"Warning: Nested <GEN> placeholder in step {i+1} for text.")
-                            
-                    else:
-                        print(f"Error: <GEN_{id}> is out of range in generated_text_list.")
-                        processed_text_input = f"<GEN_{id}>"
-                else:
-                    print(f"Error: Invalid placeholder format '{input_text}' in step {i+1}.")
-                    processed_text_input = ""
-            input_images = processed_input_images
-            step['Input_images'] = input_images
-            step['Input_text'] = processed_text_input
-
-            if Task == "AddVideo":
-                # add audio to video input
-                for img in input_images:
-                    # call v2a model for audio addition
-                    img = handle_audio_addition(img, task_dir, step, result)
-                    result += f"<boi>{img}<eoi>"
-                continue
+        
+        if Task == "GenVideo":
+            # Generate video
             
-            if Task == "Caption":
-                print(step['Input_images'])
-                print(step['Input_text'])
+            # for now, image to video cannot handle character reference, so substitute with character descriptions in content
+            video_tasks.append((replace_characters_in_content(step['Input_text'], characters), ""))
+        
+            # Generate music
+            music_tasks.append(step['Music_prompt']) if step['Music_prompt'] != "无" else ("", [])
+        
+            # Generate TTS
+            voice_direction = {}
+            for character in extract_character_from_content(step['TTS_prompt']):
+                voice_direction[character] =   characters[character]
+            if len(voice_direction) == 0 and step['TTS_prompt'] != "无" and step['TTS_prompt'] != "":
+                voice_direction["narrator"] = "30-year old female, soft voice, kind and warm"
+            tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] != "无" else ("", {}))
+    
 
-                result = handle_caption_step(task_dir,step,result)
-                if step["Output"] is None:
-                    error_message = f"Error processing task in step{i+1}: Caption output is None"
-                    print(error_message)
-                    save_error_file(task_dir, error_message)
-                continue
-            elif Task == "Call_tool":
-                continue
-            else:
-                # print(f"Unknown task '{Task}' in step {i+1}. Skipping this step.")
-                error_message = f"Unknown task '{Task}' in step {i+1}. Skipping this step."
-                print(error_message)
-                save_error_file(task_dir, error_message)
-                break
-        except Exception as e:
-            print(f"Error processing step {i+1}: {str(e)}")
-            error_message = f"Error processing task in step{i+1}: {str(e)}"
-            print(error_message)
-            save_error_file(task_dir, error_message)
-            continue
+    final = generate_all(video_tasks, music_tasks, tts_tasks, task_dir)
+    
     plan_file_final = f"{task_dir}/plan_{task.get('id', '0000')}_final.json"
-    result_json = decode_result_into_jsonl(result, task_dir,benchmark_file)
+    # result_json = decode_result_into_jsonl(result, task_dir,benchmark_file)
     # Post-process
 
     
-    save_result_json(result_json, task_dir)
+    # save_result_json(result_json, task_dir)
     save_plan_json(plan, plan_file_final)
+    print(f"Video production done, video at {final}")
     
 def main():
     parser = ArgumentParser()
@@ -811,17 +821,23 @@ def main():
     outdir = args.outdir
     
     data = load_input_json(input_json)
-    for task in tqdm(data):
+    for task in data:
 
         print(f"Processing Task: {task.get('id', '0000')}")
         task_dir = f"{outdir}/Task_{task.get('id', '0000')}"
         plan_file = f"{task_dir}/plan_{task.get('id', '0000')}.json"
         result_file = f"{task_dir}/result.json"
         error_file = f"{task_dir}/error.log"
+        characters_file = f"{task_dir}/characters.json"
+        assistant_response = None
         os.makedirs(task_dir, exist_ok=True)
         if os.path.exists(result_file) and not os.path.exists(error_file):
             print(f"Skipping task {task.get('id', '0000')}, result file already exists")
             continue
+        if glob.glob(f"{task_dir}/final_video_*"):
+            continue
+        if os.path.exists(characters_file):
+            characters = load_input_json(characters_file)
         if os.path.exists(plan_file):
             print(f"Skipping task {task.get('id', '0000')} plan generation, plan file already exists, directly extract from it")
             plan = load_input_json(plan_file)
@@ -831,41 +847,55 @@ def main():
                 print(error_message)
                 save_error_file(task_dir, error_message)
         else:
-            try: 
-                messages, Dict, Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
-
-                completion = OpenAIClient.chat.completions.create(
-                    model='gpt-4o-2024-08-06',
-                    messages=messages,
-                    max_completion_tokens=4096,
-                    temperature=0.7
-                )
-                response_text = completion.choices[0].message.content
-                try:
-                    extract_plan_from_response(response_text, plan_file)
-                except Exception as e:
-                    print(f"Error extracting plan: {str(e)}")
-                    print(completion)
-                    raise ValueError("Error extracting plan")
-            except Exception as e:
-                print(f"Error in Azure API, switch to Claude API: {str(e)}") 
-                print("Switch to Claude API")
-                # print("Error in Azure API, switch to Claude API")
-                messages,Dict,Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
+            messages, Dict, Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
+            characters = {}
+            for step, (step_name, step_prompt) in enumerate(PREPRODUCTION_PROMPTS.items()):
+                print("-"*100)
+                print(f"Step {step+1}: {step_name}")
+                print("-"*100)
+                if assistant_response is not None:
+                    messages.append(assistant_response)
+                messages.append({"role": "user", "content": f"{step_name}: {step_prompt}"})
                 
-                completion = ClaudeClient.chat.completions.create(
-                    model = "claude-3-5-sonnet-20240620",
-                    max_completion_tokens=8192,
-                    messages=messages,
-                    temperature=0.7,
-                )
-                response_text = completion.choices[0].message.content
-                try:
-                    extract_plan_from_response(response_text, plan_file)
+                try: 
+                    completion = OpenAIClient.chat.completions.create(
+                        model='gpt-4o-2024-08-06',
+                        messages=messages,
+                        max_completion_tokens=4096,
+                        temperature=0.7
+                    )
+                    assistant_response = completion.choices[0].message
+                    response_text = completion.choices[0].message.content
+
                 except Exception as e:
-                    print(f"Error extracting plan: {str(e)}")
-                    print(completion)
-                    continue
+                    print(f"Error in Azure API, switch to Claude API: {str(e)}") 
+                    print("Switch to Claude API")
+                    # print("Error in Azure API, switch to Claude API")
+
+                    completion = ClaudeClient.chat.completions.create(
+                        model = "claude-3-5-sonnet-20240620",
+                        max_completion_tokens=8192,
+                        messages=messages,
+                        temperature=0.7,
+                    )
+                    assistant_response = completion.choices[0].message
+                    response_text = completion.choices[0].message.content
+                if assistant_response and step_name == "角色提取":
+                    print("正在提取角色中...")
+                    characters = extract_json_from_response(response_text)
+                    characters = json.loads(characters)
+
+                    characters = transform_character_descriptions(characters)
+                    save_plan_json(characters, f"{task_dir}/characters.json")
+                print(f"Agent Response: {response_text}")
+                print("-"*100)
+
+            try:
+                extract_plan_from_response(response_text, plan_file, characters=characters)
+            except Exception as e:
+                print(f"Error extracting plan: {str(e)}")
+                print(completion)
+                raise ValueError("Error extracting plan")
             plan = load_input_json(plan_file)
 
             if not isinstance(plan, list):
@@ -875,55 +905,63 @@ def main():
                 continue
             # Replace the image placeholders in the plan with the actual image content
             print(Dict_for_plan)
-            plan = replace_image_placeholders_in_plan(plan, Dict_for_plan)
-            save_plan_json(plan, plan_file)
+            # plan = replace_image_placeholders_in_plan(plan, Dict_for_plan)
+            # save_plan_json(plan, plan_file)
+            # save_plan_json(characters, f"{task_dir}/characters.json")
             # Save Dict_for_plan to a file
-            with open(f"{task_dir}/Dict_for_plan.json", 'w') as f:
-                json.dump(Dict_for_plan, f, indent=4)
-        
-        Execute_plan(plan,task, task_dir)
-        
-        
-        cnt = 0
-        while os.path.exists(error_file):
-            cnt += 1
-            if cnt > 2:
-                with open(f"{task_dir}/skip", 'w') as f:
-                    f.write("skip")
-                break
-            with open(f"{task_dir}/error.log", 'r') as f:
-                error_message = f.read()
-            os.remove(f"{task_dir}/error.log")
-            Query = task["Query"]
-            task_content = ""
-            for seg in Query:
-                if seg['type'] == "text":
-                    task_content += seg['content']
-            structure = f"{extract_structure(task)['Answer_str']}"
-            # print(response_text)
-            response_text = double_check(task_dir,task_content,structure,response_text,error_message)
-            try:
-                extract_plan_from_response(response_text, plan_file)
-            except Exception as e:
-                print(f"Error extracting plan: {str(e)}")
-                with open(f"{task_dir}/error.log", 'a') as f:
-                    f.write(f"Error extracting plan: {str(e)}")
-                    break
-            plan = load_input_json(plan_file)
-            if not isinstance(plan, list):
-                print(f"Error: Plan file is not a list: {plan_file}")
-                error_message = f"Error: Plan file is not a list: {plan_file}"
-                save_error_file(task_dir, error_message)
-                continue
-            # Replace the image placeholders in the plan with the actual image content
-            Dict_for_plan = load_input_json(f"{task_dir}/Dict_for_plan.json")
-            plan = replace_image_placeholders_in_plan(plan, Dict_for_plan)
-            save_plan_json(plan, plan_file)
-            Execute_plan(plan,task, task_dir)
             
-            
-            
+            save_plan_json(Dict_for_plan, f"{task_dir}/Dict_for_plan.json")
+        
+        Execute_plan(plan,task, task_dir, characters=characters)
+        
+        
+        # cnt = 0
+        # while os.path.exists(error_file):
+        #     cnt += 1
+        #     if cnt > 2:
+        #         with open(f"{task_dir}/skip", 'w') as f:
+        #             f.write("skip")
+        #         break
+        #     with open(f"{task_dir}/error.log", 'r') as f:
+        #         error_message = f.read()
+        #     os.remove(f"{task_dir}/error.log")
+        #     Query = task["Query"]
+        #     task_content = ""
+        #     for seg in Query:
+        #         if seg['type'] == "text":
+        #             task_content += seg['content']
+        #     structure = f"{extract_structure(task)['Answer_str']}"
+        #     # print(response_text)
+        #     response_text = double_check(task_dir,task_content,structure,response_text,error_message)
+        #     try:
+        #         extract_plan_from_response(response_text, plan_file)
+        #     except Exception as e:
+        #         print(f"Error extracting plan: {str(e)}")
+        #         with open(f"{task_dir}/error.log", 'a') as f:
+        #             f.write(f"Error extracting plan: {str(e)}")
+        #             break
+        #     plan = load_input_json(plan_file)
+        #     if not isinstance(plan, list):
+        #         print(f"Error: Plan file is not a list: {plan_file}")
+        #         error_message = f"Error: Plan file is not a list: {plan_file}"
+        #         save_error_file(task_dir, error_message)
+        #         continue
+        #     # Replace the image placeholders in the plan with the actual image content
+        #     Dict_for_plan = load_input_json(f"{task_dir}/Dict_for_plan.json")
+        #     plan = replace_image_placeholders_in_plan(plan, Dict_for_plan)
+        #     save_plan_json(plan, plan_file)
+        #     Execute_plan(plan,task, task_dir)
 
 
 if __name__ == "__main__":
     main()
+    # characters = {
+    # "杨喀雄": "男性，年龄18-25，肤色偏白或小麦色，身材匀称，面容清秀但有几分刚毅感，年轻聪明，内心善良，表情丰富",
+    # "周女": "女性，年龄18-22，肤色白皙或淡黄，身材娇小玲珑，面容娇美，温柔聪慧，内心细腻，具有温暖人心的气质",
+    # "狐女": "女性（虚拟角色），年龄20-30，肤色白皙或略带红润，身材修长，面容神秘妖娆，充满神秘感和智慧，具有超凡脱俗的气质",
+    # "周副将": "男性，年龄40-50，肤色小麦色，身材健壮，面容严肃，严肃但内心柔软，具有威严感",
+    # "周铻": "男性，年龄30-40，肤色小麦色，身材匀称，面容开朗，开朗直率，富有正义感，对喀雄友好"
+    # }
+    # content = "Generate video:中景 写实 轻微推镜头，逐渐拉近两人。 <杨喀雄>在花园中与<周女>幽会，互相依偎，笑声不断。"
+    # print(extract_character_from_content(content))
+    # print(replace_characters_in_content(content, characters))

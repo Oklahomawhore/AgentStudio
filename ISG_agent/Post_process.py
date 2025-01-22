@@ -7,7 +7,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
-result_dir = "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_addAudio"
+result_dir = "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_novel"
 
 result_json = glob.glob(f"{result_dir}/**/result.json")
 

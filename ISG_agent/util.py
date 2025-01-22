@@ -5,6 +5,9 @@ import requests
 from PIL import Image
 import base64 
 from typing import Tuple, List
+from threading import Lock
+
+make_dir_lock = Lock()
 
 def download_video_and_save_as_mp4(video_url,file_name=None, save_directory="videos", seconds_per_screenshot=1) -> Tuple[str, List[str]]:
     """
@@ -21,11 +24,21 @@ def download_video_and_save_as_mp4(video_url,file_name=None, save_directory="vid
     """
     try:
         # Ensure the save directory exists
-        os.makedirs(save_directory, exist_ok=True)
+        with make_dir_lock:
+            os.makedirs(save_directory, exist_ok=True)
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        }
 
         
         # Download the video
-        response = requests.get(video_url, stream=True)
+        response = requests.get(video_url, stream=True, headers=headers)
         response.raise_for_status()
 
         # Define the full file path

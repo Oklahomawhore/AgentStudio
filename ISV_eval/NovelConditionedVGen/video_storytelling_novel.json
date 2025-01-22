@@ -1,99 +1,22 @@
 [
-    {
-      "id": "0000",
-      "Category": "Video Storytelling",
-      "Query": [
-        {
-          "type": "text",
-          "content": "请用视频描述一个这样的故事： 唐纳德特朗正在台上激情演讲关于美国梦的故事，这时奥巴马突然在台下喊道：'该死！别听这个人的！他是中国共产党的卧底！'，台上的特朗普一脸尴尬，台下的观众哗然，这时习近平总书记一个箭步冲上台，将一枚共和国勋章别在特朗普的身上，特朗普无奈的笑了一下说：'我有罪，但是只有共产党才能救美国。'，台下观众沸腾了，远处飘扬起了五星红旗。"
-        }
-      ],
-      "Golden": [
-        {
-          "type": "text",
-          "content": "```json\n{\n    \"#image1#\": \"In a cozy, dimly lit room, a young writer sits at their desk, fingers poised over the keyboard, ready to embark on a creative journey. The air is filled with anticipation as they prepare to weave together a tale that has been brewing in their mind.\",\n    \"#image2#\": \"As the first words begin to flow, the writer feels a surge of inspiration. Thoughts race through their mind, jumping from one idea to another like a spark igniting a flame. Each keystroke resonates with a sense of purpose and excitement, as they dive deeper into their narrative.\",\n    \"#image3#\": \"With each passing moment, the story evolves, characters coming to life with vivid personalities and intricate backstories. The writer's passion radiates through the clattering of keys, creating a symphony of creativity that fills the room, drowning out the outside world.\",\n    \"#image4#\": \"Suddenly, a moment of doubt creeps in. The writer pauses, fingers hovering above the keyboard as they contemplate the direction of their story. But after a brief moment of reflection, determination takes over, and they dive back into the flow, ready to conquer the challenges ahead.\",\n    \"#image5#\": \"With renewed vigor, the writer's fingers dance across the keyboard, sentences forming like magic. The story unfolds with unexpected twists and turns, captivating the writer's imagination and compelling them to push forward, eager to reach the conclusion"
-        },
-        { "type": "video", "content": "v_Typing_g22" }
-      ],
-      "predict": {
-        "input": "I will give you a picture of a person in a scenario. <image1> Please use a combination of 4 images and text to show what will happen next. Please generate an overall description first, then directly generate adjacent image blocks.\n (the caption of the <query_img1> is: \"```json\n{\n    \"#image1#\": \"In a cozy, dimly lit room, a young writer sits at their desk, fingers poised over the keyboard, ready to embark on a creative journey. The air is filled with anticipation as they prepare to weave together a tale that has been brewing in their mind.\",\n    \"#image2#\": \"As the first words begin to flow, the writer feels a surge of inspiration. Thoughts race through their mind, jumping from one idea to another like a spark igniting a flame. Each keystroke resonates with a sense of purpose and excitement, as they dive deeper into their narrative.\",\n    \"#image3#\": \"With each passing moment, the story evolves, characters coming to life with vivid personalities and intricate backstories. The writer's passion radiates through the clattering of keys, creating a symphony of creativity that fills the room, drowning out the outside world.\",\n    \"#image4#\": \"Suddenly, a moment of doubt creeps in. The writer pauses, fingers hovering above the keyboard as they contemplate the direction of their story. But after a brief moment of reflection, determination takes over, and they dive back into the flow, ready to conquer the challenges ahead.\",\n    \"#image5#\": \"With renewed vigor, the writer's fingers dance across the keyboard, sentences forming like magic. The story unfolds with unexpected twists and turns, captivating the writer's imagination and compelling them to push forward, eager to reach the conclusion\") ",
-        "structural": {
-          "Query": ["<query_text1>", "<query_img1>"],
-          "Answer": [
-            "<gen_text1>",
-            "<gen_img1>",
-            "<gen_img2>",
-            "<gen_img3>",
-            "<gen_img4>"
-          ]
-        },
-        "block_tuple": {
-          "Thought": "Analyze the given prompt to understand the relationships between the elements mentioned, focusing on the sequence and the description provided.",
-          "relation": [
-            ["<gen_text1>", "<query_img1>", "describes the overall action of"],
-            [
-              "<gen_img1>",
-              "<query_img1>",
-              "is the starting point of the sequence"
-            ],
-            ["<gen_img2>", "<gen_img1>", "is the next image in the sequence"],
-            [
-              "<gen_img3>",
-              "<gen_img2>",
-              "is semantically consistent to the next step"
-            ],
-            ["<gen_img4>", "<gen_img3>", "is the final image in the sequence"]
-          ]
-        }
+  {
+    "id": "0000",
+    "Category": "Video Storytelling",
+    "Query": [
+      {
+        "type": "text",
+        "content": "葛道人以风洗手\n葛道人是杭州仁和人，家道小康。他爱好道术，五十开外时，把家中的一半财产给了儿子，自己带着另一半去作远游。他过了钱塘江，准备取道上天台山。半路上遇见一老翁，向葛道人拱手施礼，说：“你天生的一副道骨，何不学道呢？”说到葛道人心里去了。葛道人与老翁谈得十分融洽。老翁说：“我是福建人，通晓天文，曾经在京城的钦天监做过官，我辞去官职已有二十年了。你如果不嫌弃，明年春天我一定在家里恭候你光临。”说完，将家里的地址给了葛道人。\n第二年春天，葛道人如期到福建某地拜访老翁，却没能相遇。晚上，他住进一家旅店，又碰上一位道士，相貌堂堂，很有精神，整个晚上不发一言，葛道人主动去与他攀谈，说自己是为了访问神仙而到福建来的。那道士说：“你真有这个志向，我可以推荐你到庐山去，拜访我的师兄林先生，他可以做你的老师。”葛道人请道士写了推荐信，就上了庐山。\n葛道人在庐山行访十多天，就是不见林先生的踪影，心里不禁暗暗地怀疑起来。一天，他忽然看见有个山洞中坐着一位老人，正在用手招风，做出盥洗的动作。葛道人看着觉得奇怪，便递上道士的推荐信，跪拜在老人座下。老人说：“你来得太早了，你在人间还有三十年未了的因缘，我给你一卷经文，一件法宝，你离开庐山后，不要忘了诵读经文，守护好这件法宝，以救济世人。三十年后，你再进山来，那时我就可以传道给你了”。所谓法宝，是一块鹅蛋般大小的石头，石头上有条缝，颇像人的眼睛，有光芒射出，而且还能像人眼那样一开一合。老人带葛道人出山，走了不到半天，已上了去杭州的大道。到了家里，葛道人诵经守宝，修炼道术，能治鬼服妖。邻人但凡有求于他，必能相助，声名远播，十里八乡的都知道了葛道人，到了十年头上，葛道人也可以餐风饮露，以风洗手了。"
       }
-    },
-    {
-      "id": "0001",
-      "Category": "Video Storytelling",
-      "Query": [
-        {
-          "type": "text",
-          "content": "请用视频描述一个这样的故事：村里的精神小伙，一个瘦巴巴柔弱的人，准备到一户人家里相亲，见他那个日思夜想的美丽女子。他提着一盒礼品，从一个农村院子的门口走进来，对里面正在剥花生的大娘说，大娘，在剥罗森（河南话，就是花生的意思）呢？，并从兜里掏出一盒烟准备让给大娘，大娘婉拒道，不抽不抽，我不会。"
-        }
-      ],
-      "Golden": [
-        {
-          "type": "text",
-          "content": "```json\n{\n    \"#image1#\": \"In a bustling city, a young woman named Mia stands at the edge of a vibrant park, her eyes sparkling with excitement as she prepares for a day of adventure.\",\n    \"#image2#\": \"Mia pulls out her camera, a cherished gift from her late grandfather, and takes a moment to adjust the settings, reminiscing about the countless stories he captured through his lens.\",\n    \"#image3#\": \"With a deep breath, she steps onto a winding path, surrounded by blooming flowers and the laughter of children playing nearby, feeling a sense of freedom and joy.\",\n    \"#image4#\": \"As she walks, Mia notices an elderly man sitting on a bench, sketching the scenery. Intrigued, she approaches him, eager to learn about his artistic journey.\",\n    \"#image5#\": \"The man, named Mr. Thompson, shares tales of his travels and the inspiration behind his art, igniting a spark of creativity in Mia's heart.\",\n    \"#image6#\": \"Inspired, Mia decides to capture the essence of the park through her photography, snapping pictures of the vibrant colors and lively moments around her.\",\n    \"#image7#\": \"Suddenly, a playful dog dashes past her, chasing a frisbee thrown by its owner, and Mia instinctively captures the joyful scene, her heart swelling with happiness.\",\n    \"#image8#\": \"As the sun begins to set, casting a golden glow over the park, Mia finds a quiet spot to reflect on her day, feeling grateful for the connections she made and the beauty she witnessed.\",\n    \"#image9#\": \"With her camera full of memories, Mia heads home, her mind buzzing with ideas for her next project, determined to share the stories of the people and places she encounters.\"\n}\n```"
-        },
-        { "type": "video", "content": "v_Rafting_g25" }
-      ],
-      "predict": {
-        "input": "I will give you a picture of a person in a scenario. <image1> Please use a combination of 4 images and text to show what will happen next. Please generate an overall description first, then directly generate adjacent image blocks.\n (the caption of the <query_img1> is: \"```json\n{\n    \"#image1#\": \"In a bustling city, a young woman named Mia stands at the edge of a vibrant park, her eyes sparkling with excitement as she prepares for a day of adventure.\",\n    \"#image2#\": \"Mia pulls out her camera, a cherished gift from her late grandfather, and takes a moment to adjust the settings, reminiscing about the countless stories he captured through his lens.\",\n    \"#image3#\": \"With a deep breath, she steps onto a winding path, surrounded by blooming flowers and the laughter of children playing nearby, feeling a sense of freedom and joy.\",\n    \"#image4#\": \"As she walks, Mia notices an elderly man sitting on a bench, sketching the scenery. Intrigued, she approaches him, eager to learn about his artistic journey.\",\n    \"#image5#\": \"The man, named Mr. Thompson, shares tales of his travels and the inspiration behind his art, igniting a spark of creativity in Mia's heart.\",\n    \"#image6#\": \"Inspired, Mia decides to capture the essence of the park through her photography, snapping pictures of the vibrant colors and lively moments around her.\",\n    \"#image7#\": \"Suddenly, a playful dog dashes past her, chasing a frisbee thrown by its owner, and Mia instinctively captures the joyful scene, her heart swelling with happiness.\",\n    \"#image8#\": \"As the sun begins to set, casting a golden glow over the park, Mia finds a quiet spot to reflect on her day, feeling grateful for the connections she made and the beauty she witnessed.\",\n    \"#image9#\": \"With her camera full of memories, Mia heads home, her mind buzzing with ideas for her next project, determined to share the stories of the people and places she encounters.\"\n}\n```\") ",
-        "structural": {
-          "Query": ["<query_text1>", "<query_img1>"],
-          "Answer": [
-            "<gen_text1>",
-            "<gen_img1>",
-            "<gen_img2>",
-            "<gen_img3>",
-            "<gen_img4>"
-          ]
-        },
-        "block_tuple": {
-          "Thought": "Analyze the given prompt to understand the relationships between the elements mentioned, focusing on the sequence and the description provided.",
-          "relation": [
-            ["<gen_text1>", "<query_img1>", "describes the overall action of"],
-            [
-              "<gen_img1>",
-              "<query_img1>",
-              "is the starting point of the sequence"
-            ],
-            ["<gen_img2>", "<gen_img1>", "is the next image in the sequence"],
-            [
-              "<gen_img3>",
-              "<gen_img2>",
-              "is semantically consistent to the next step"
-            ],
-            ["<gen_img4>", "<gen_img3>", "is the final image in the sequence"]
-          ]
-        }
+    ]
+  },
+  {
+    "id": "0001",
+    "Category": "Video Storytelling",
+    "Query": [
+      {
+        "type": "text",
+        "content": "狐女报恩以身作媒\n杨喀雄的父亲做过守备官，死得很早。他的表叔周琥任副将的官职，镇守河州，对杨喀雄自幼孤苦伶仃很同情，便收留抚养了他。周某有个女儿，看到喀雄年轻聪明，很喜欢他，常常给他吃东西。周某家教很严，所以他女儿和喀雄并无出格的事。\n有一年夏夜，喀雄受不住酷热，就在月光下散步，看见周某的女儿慢慢地也来了，喀雄忍不住就与偷尝禁果。第二天清晨，喀雄进屋向表叔请安，看见周女在梳妆，喀雄看着她笑，周女也笑着迎接他。从此以后，周女没有一天不与喀雄在花前月下幽会。\n一次，邻居听见喀雄的房间里有男女说笑声，起了疑心，便去探看，看见喀雄与周女在亲昵拥抱，不由妒火中烧，到周副将那儿密告了这件事。周副将到内房指责夫人管教不严，夫人说：“女儿每天夜里都和我同床睡，怎么会有像你说的那种事！”周副将到底还是放心不下，以其他事故为借口，将喀雄打了一顿，赶出周家门去了。\n喀雄失去了依靠，就在兰州的一座古寺里住下。一天，周女忽然来找他，还带来了很多值钱的珠宝首饰。喀雄又惊又喜，问她怎么会到兰州来的，周女说：“是与我叔父一起来的。”周副将的弟弟周铻，也是一个武官，刚刚升任兰州的守备。喀雄对周女的话深信不疑，与周女同居了半个月，得意洋洋，像个有钱人。\n周铻到任后，在路上碰见了喀雄，高兴地说：“侄儿，你也住在兰州吗？”喀雄回答说：“是的。”周铻骑着马来到喀雄新居，叫侄媳妇出来拜见，一看，原来就是哥哥周副将的女儿。周铻大吃一惊，问喀雄是怎么回事，喀雄将前后经过的事情全告诉了周铻，周铻说：“我来的时候，不曾听说我哥哥家里有女儿出走的事情，难道这是我兄长故意不告诉我吗？”\n周铻回到驻地借口有公事要办，赶到河州，把在兰州见到喀雄、侄女的事告诉了周副将。周副将吓了一跳，说：“我女儿分明在房内，刚才还在一起吃饭，哪里会有这种事？莫非是狐狸精假冒我女儿不成！”周副将夫人说：“与其让狐狸假冒我女儿名义，玷污我女儿名声，倒不如索性让女儿嫁给他做妻子，看狐狸精怎么办？”周氏两兄弟很赞同夫人的意见，立刻唤喀雄回到河州与周女成亲。洞房花烛的那夜，不料假冒的周女已预先守候在新房里，对此，喀雄束手无策，不知怎么办才好。假冒的周女对喀雄说：“有什么可以惊慌失措的？我是狐狸精，我是为了报答你的恩德而来。你祖父当将军时，曾经在土门关打猎，我中箭被捉，你祖父拔掉了我身上箭，放了我。几次想报答你祖父的恩德，只是不知如何才好。前些时得知你爱上了周副将的女儿，难以如愿，所以特地来替你做媒人，好让你如愿以偿。这也是你与周女本来就有缘分，不然的话，我也无能为力。现在，媒已做好，我准备走了。”刹那间，狐仙已不见了。"
       }
-    }
-  ]
-  
+    ]
+  }
+]

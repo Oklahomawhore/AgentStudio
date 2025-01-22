@@ -176,6 +176,12 @@ cython_debug/
 
 */results*
 */videos
+*/audio
+*/music
+*/imgs
+*/speaker_embeddings
+*/asset
+asset/
 
 # VS-code
 

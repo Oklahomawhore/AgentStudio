@@ -13,19 +13,16 @@ dotenv.load_dotenv()
 app = Flask(__name__)
 
 # Lock for handling concurrent video generation requests
-text2video_generator_lock = Lock()
 
 # API credentials
 TEXT_API_URL = 'http://zzzzapi.com/kling/v1/videos/text2video'
 TEXT_STATUS_URL = 'http://zzzzapi.com/kling/v1/videos/text2video/'
 
-img2video_generator_lock = Lock()
 
 # API credentials
 IMG_API_URL = 'http://zzzzapi.com/kling/v1/videos/image2video'
 IMG_STATUS_URL = 'http://zzzzapi.com/kling/v1/videos/image2video/'
 
-img_generator_lock = Lock()
 
 # API credentials with updated names
 IMGGEN_API_URL = 'http://zzzzapi.com/kling/v1/images/generations'
@@ -103,31 +100,28 @@ def generate_video():
         if not data or 'prompt' not in data:
             return jsonify({'error': 'Invalid input. Expected JSON with a "prompt" key.'}), 400
 
-        with text2video_generator_lock:
-            # Step 1: Request to generate video and get task_id
-            task_id = generate_video_request(data)
 
-            if not task_id:
-                return jsonify({'error': 'Failed to initiate video generation.'}), 500
-
-            # Step 2: Periodically check for task completion status
-            task_status = None
-            video_url = None
-            retry_count = 0
-            max_retries = 8
-            while task_status != 'succeed':
-                task_status = check_text2video_status(task_id)
-
-                # If the task has succeeded, we retrieve the video URL
-                if task_status is not None:
-                    video_url = task_status
-                    break
-                else:
-                    # If task is still running, wait before checking again
-                    # If task is still running, wait before checking again (check every 1 minute)
-                    retry_count += 1
-                    if retry_count < max_retries:
-                        time.sleep(60)
+        # Step 1: Request to generate video and get task_id
+        task_id = generate_video_request(data)
+        if not task_id:
+            return jsonify({'error': 'Failed to initiate video generation.'}), 500
+        # Step 2: Periodically check for task completion status
+        task_status = None
+        video_url = None
+        retry_count = 0
+        max_retries = 8
+        while task_status != 'succeed':
+            task_status = check_text2video_status(task_id)
+            # If the task has succeeded, we retrieve the video URL
+            if task_status is not None:
+                video_url = task_status
+                break
+            else:
+                # If task is still running, wait before checking again
+                # If task is still running, wait before checking again (check every 1 minute)
+                retry_count += 1
+                if retry_count < max_retries:
+                    time.sleep(60)
 
         if video_url:
             # Step 3: Download video and convert to base64
@@ -224,30 +218,27 @@ def generate_image2video():
         if not data or 'image' not in data or 'prompt' not in data:
             return jsonify({'error': 'Invalid input. Expected JSON with "image" and "prompt" keys.'}), 400
 
-        with img2video_generator_lock:
-            # Step 1: Request to generate video and get task_id
-            task_id = generate_image2video_request(data)
-
-            if not task_id:
-                return jsonify({'error': 'Failed to initiate video generation.'}), 500
-
-            # Step 2: Periodically check for task completion status
-            task_status = None
-            video_url = None
-            retry_count = 0
-            max_retries = 8
-            while retry_count < max_retries and task_status != 'succeed':
-                task_status = check_img2video_status(task_id)
-
-                # If the task has succeeded, we retrieve the video URL
-                if task_status is not None:
-                    video_url = task_status
-                    break
-                else:
-                    # If task is still running, wait before checking again (check every 1 minute)
-                    retry_count += 1
-                    if retry_count < max_retries:
-                        time.sleep(60)
+        
+        # Step 1: Request to generate video and get task_id
+        task_id = generate_image2video_request(data)
+        if not task_id:
+            return jsonify({'error': 'Failed to initiate video generation.'}), 500
+        # Step 2: Periodically check for task completion status
+        task_status = None
+        video_url = None
+        retry_count = 0
+        max_retries = 8
+        while retry_count < max_retries and task_status != 'succeed':
+            task_status = check_img2video_status(task_id)
+            # If the task has succeeded, we retrieve the video URL
+            if task_status is not None:
+                video_url = task_status
+                break
+            else:
+                # If task is still running, wait before checking again (check every 1 minute)
+                retry_count += 1
+                if retry_count < max_retries:
+                    time.sleep(60)
 
         if video_url:
             # Step 3: Download video and convert to base64
@@ -343,32 +334,32 @@ def generate_image():
 
         if not data or 'prompt' not in data:
             return jsonify({'error': 'Invalid input. Expected JSON with "prompt" key.'}), 400
-        with img_generator_lock:
-            # Step 1: Request to generate image and get task_id
-            task_id = IMGGEN_generate_image_request(data)
-    
-            if not task_id:
-                return jsonify({'error': 'Failed to initiate image generation.'}), 500
-    
-            # Step 2: Periodically check for task completion status
-            task_status = None
-            image_url = None
-            retry_count = 0
-            max_retries = 5
-            while retry_count < max_retries and task_status != 'succeed':
-                task_status = IMGGEN_check_image_status(task_id)
-    
-                # If the task has succeeded, retrieve the image URL
-                if task_status['task_status'] == 'succeed':
-                    image_url = task_status['image_url']
-                    break
-                elif task_status['task_status'] == 'Exception':
-                    return jsonify({'error' : task_status['Exception']}), 503
-                else:
-                    # If task is still processing, wait before checking again (check every 1 minute)
-                    retry_count += 1
-                    if retry_count < max_retries:
-                        time.sleep(10)
+        
+        # Step 1: Request to generate image and get task_id
+        task_id = IMGGEN_generate_image_request(data)
+
+        if not task_id:
+            return jsonify({'error': 'Failed to initiate image generation.'}), 500
+
+        # Step 2: Periodically check for task completion status
+        task_status = None
+        image_url = None
+        retry_count = 0
+        max_retries = 3
+        while retry_count < max_retries and task_status != 'succeed':
+            task_status = IMGGEN_check_image_status(task_id)
+
+            # If the task has succeeded, retrieve the image URL
+            if task_status['task_status'] == 'succeed':
+                image_url = task_status['image_url']
+                break
+            elif task_status['task_status'] == 'Exception':
+                return jsonify({'error' : task_status['Exception']}), 503
+            else:
+                # If task is still processing, wait before checking again (check every 1 minute)
+                retry_count += 1
+                if retry_count < max_retries:
+                    time.sleep(60)
         if image_url:
             # Step 3: Download image and convert to base64
             base64_image = IMGGEN_download_image_and_convert_to_base64(image_url)
