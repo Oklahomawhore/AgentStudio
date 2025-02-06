@@ -16,7 +16,7 @@ import replicate
 import oss2, requests
 import uuid
 from production import gen_img, generate_all
-from typing import DefaultDict
+from typing import DefaultDict, Dict
 from PIL import Image
 import glob
 
@@ -25,11 +25,11 @@ dotenv.load_dotenv()
 benchmark_file = "../ISV_eval/VideoStoryTelling/video_storytelling_mini.json" # <path to benchmark.jsonl>
 
 OpenAIClient = OpenAI(
-   api_key=os.getenv("OPENAI_API_KEY"), # KEY
+   api_key=os.getenv("KLING_API_KEY"), # KEY
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 ClaudeClient = OpenAI(
-   api_key=os.getenv("CLAUDE_API_KEY"), # KEY
+   api_key=os.getenv("KLING_API_KEY"), # KEY
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 
@@ -48,6 +48,10 @@ def load_input_json(json_file:str):
         data = json.load(f)
     return data
 
+def load_input_txt(txt_file:str):
+    with open(txt_file, 'r') as f:
+        data = f.read()
+    return data
 def save_plan_json(json_data,file):
     dir_name = os.path.dirname(file)
     print(f"Directory: {dir_name}")
@@ -217,7 +221,7 @@ def preprocess_task(task, task_dir, plan_model):
         # })
         # print(f"Structure: {extract_structure(task)['Answer_str']}")
         messages = [
-            {"role": "system", "content": PLANNING_PROMPT},
+            {"role": "user", "content": PLANNING_PROMPT},
             {"role": "user", "content": content},
         ]
         
@@ -493,26 +497,28 @@ def extract_plan_from_response(response_text, plan_file,characters={}):
             if scene['duration'] > 5:
                 # trucate to 5d steps rounding up, break content into even characters
                 num_steps = (scene['duration'] + 4) // 5
-                for i in range(num_steps):
-                    steps.append({
-                        "Step": step_num,
-                        "Task": "GenVideo",
-                        "Input_text": f"Generate video:{scene['scene']} {scene['style']} {scene['motion']} {scene['content'][i*(len(scene['content']) // num_steps):(i+1)*(len(scene['content']) // num_steps)]}",
-                        "Music_prompt" : scene['music'],
-                        "TTS_prompt" : scene['dialogue'],
-                        "Input_images": [],
-                        "Output": "<WAIT>"
-                    },)
-                    step_num += 1
+                local_content = scene.get('content', '')
+                if len(local_content) > 0:
+                    for i in range(num_steps):
+                        steps.append({
+                            "Step": step_num,
+                            "Task": "GenVideo",
+                            "Input_text": f"{scene.get('scene', '')} {scene.get('style', '')} {scene.get('motion', '')} {scene['content'][i*(len(scene['content']) // num_steps):(i+1)*(len(scene['content']) // num_steps)]}",
+                            "Music_prompt" : scene['music'] if 'music' in scene else "",
+                            "TTS_prompt" : scene['dialogue'] if 'dialogue' in scene else "",
+                            "Input_images": [],
+                            "Output": "<WAIT>"
+                        },)
+                        step_num += 1
                     
             else:
                 # only one step
                 steps.append({
                     "Step": step_num,
                     "Task": "GenVideo",
-                    "Input_text": f"Generate video:{scene['scene']} {scene['style']} {scene['motion']} {scene['content']}",
-                    "Music_prompt" : scene['music'],
-                    "TTS_prompt" : scene['dialogue'],
+                    "Input_text": f"{scene.get('scene', '')} {scene.get('style', '')} {scene.get('motion', '')} {scene.get('content', '')}",    
+                    "Music_prompt" :  scene['music'] if 'music' in scene else "",
+                    "TTS_prompt" : scene['dialogue'] if 'dialogue' in scene else "",
                     "Input_images": [],
                     "Output": "<WAIT>"
                 },)
@@ -751,8 +757,50 @@ def extract_structure(benchmark):
     "Answer": golden_list,
     "Answer_str": " ".join(golden_list)
     }
+
+def conditional_video_prompt(input_text, story):
+    messages  = []
+    messages.append({"role": "user", "content": "作为一个视频生成提示词编写达人，你会根据背景故事和当前镜头内容来编写视频生成提示词。给你一段背景故事和当前的镜头内容，你要给出视频生成模型提示词。你的提示词要栩栩如生，细节丰富，人物清晰，美感十足。你的提示词要让观众不通过其他内容就可以直接想象到一副生动的画面。提示词大约150～300字之间。**注意**：在编写提示词的时候遇到<#角色名#>这样的格式要原封不动的保留。"})
+    messages.append({"role": "user", "content": story})
+    messages.append({"role": "user", "content": input_text})
+    print("-" * 50)
+    print(f"正在编写视频提示词: {input_text}")
+    try: 
+        completion = OpenAIClient.chat.completions.create(
+            model='deepseek-r1',
+            messages=messages,
+            # max_completion_tokens=4096,
+            # temperature=0.7
+        )
+        
+        response_text = completion.choices[0].message.content
+        # remove <think> tag in deepseek-r1 response
+        if "</think>" in response_text:
+            response_text = response_text.split("</think>")[-1]
+    except Exception as e:
+        print(f"Error in Azure API, switch to Claude API: {str(e)}") 
+        print("Switch to Claude API")
+        # print("Error in Azure API, switch to Claude API
+        completion = ClaudeClient.chat.completions.create(
+            model = "o1-preview-2024-09-12",
+            # max_completion_tokens=8192,
+            messages=messages,
+            # temperature=0.7,
+        )
+        
+        response_text = completion.choices[0].message.content
+
+    if response_text:
+        print("-" * 50)
+        print(f"视频提示词编写完成: {response_text}")
+        print("-" * 50)
+        return response_text
+    else:
+        # downgrade
+        return input_text
     
-def Execute_plan(plan,task, task_dir, characters={}):
+
+def Execute_plan(plan, task, task_dir, characters={}, story=""):
     if os.path.exists(f"{task_dir}/error.log"):
         return
     
@@ -774,6 +822,10 @@ def Execute_plan(plan,task, task_dir, characters={}):
         with open(f"{task_dir}/characters_img.json", "w", encoding='utf-8') as f:
             json.dump(character_img, f, indent=4,ensure_ascii=False)
 
+    video_prompts = DefaultDict()
+    if os.path.exists(f"{task_dir}/video_prompt.json"):
+        with open(f"{task_dir}/video_prompt.json", "r") as f:
+            video_prompts = json.load(f)
     # Generate characters for story
 
     video_tasks = []
@@ -784,9 +836,13 @@ def Execute_plan(plan,task, task_dir, characters={}):
         
         if Task == "GenVideo":
             # Generate video
+            # In this step, we expand our content into video prompt, conditioned on the overall storyline.
+            video_prompt = video_prompts[str(step['Step'])] if str(step['Step']) in video_prompts else conditional_video_prompt(step['Input_text'], story)
+            step['Input_text'] = video_prompt
+            video_prompts[str(step['Step'])] = video_prompt
             
             # for now, image to video cannot handle character reference, so substitute with character descriptions in content
-            video_tasks.append((replace_characters_in_content(step['Input_text'], characters), ""))
+            video_tasks.append((replace_characters_in_content(video_prompt, characters), ""))
         
             # Generate music
             music_tasks.append(step['Music_prompt']) if step['Music_prompt'] != "无" else ("", [])
@@ -794,12 +850,14 @@ def Execute_plan(plan,task, task_dir, characters={}):
             # Generate TTS
             voice_direction = {}
             for character in extract_character_from_content(step['TTS_prompt']):
-                voice_direction[character] =   characters[character]
+                if character in characters:
+                    voice_direction[character] =  characters[character]
             if len(voice_direction) == 0 and step['TTS_prompt'] != "无" and step['TTS_prompt'] != "":
                 voice_direction["narrator"] = "30-year old female, soft voice, kind and warm"
             tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] != "无" else ("", {}))
     
-
+    with open(f"{task_dir}/video_prompt.json", "w", encoding='utf-8') as f:
+        json.dump(video_prompts, f, indent=4,ensure_ascii=False)
     final = generate_all(video_tasks, music_tasks, tts_tasks, task_dir)
     
     plan_file_final = f"{task_dir}/plan_{task.get('id', '0000')}_final.json"
@@ -810,7 +868,15 @@ def Execute_plan(plan,task, task_dir, characters={}):
     # save_result_json(result_json, task_dir)
     save_plan_json(plan, plan_file_final)
     print(f"Video production done, video at {final}")
-    
+
+def MessageToJson(message):
+    if isinstance(message, dict):
+        return message
+    return {
+        "role": message.role,
+        "content": message.content
+    }
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("--input_json", type=str, help="Input json file")
@@ -829,6 +895,7 @@ def main():
         result_file = f"{task_dir}/result.json"
         error_file = f"{task_dir}/error.log"
         characters_file = f"{task_dir}/characters.json"
+        story_file = f"{task_dir}/story.txt"
         assistant_response = None
         os.makedirs(task_dir, exist_ok=True)
         if os.path.exists(result_file) and not os.path.exists(error_file):
@@ -838,6 +905,8 @@ def main():
             continue
         if os.path.exists(characters_file):
             characters = load_input_json(characters_file)
+        if os.path.exists(story_file):
+            story = load_input_txt(story_file)
         if os.path.exists(plan_file):
             print(f"Skipping task {task.get('id', '0000')} plan generation, plan file already exists, directly extract from it")
             plan = load_input_json(plan_file)
@@ -859,13 +928,17 @@ def main():
                 
                 try: 
                     completion = OpenAIClient.chat.completions.create(
-                        model='gpt-4o-2024-08-06',
+                        model='deepseek-r1',
                         messages=messages,
-                        max_completion_tokens=4096,
-                        temperature=0.7
+                        # max_completion_tokens=4096,
+                        # temperature=0.7,
                     )
                     assistant_response = completion.choices[0].message
                     response_text = completion.choices[0].message.content
+
+                    # remove <think> tag in deepseek-r1 response
+                    if "</think>" in response_text:
+                        response_text = response_text.split("</think>")[-1]
 
                 except Exception as e:
                     print(f"Error in Azure API, switch to Claude API: {str(e)}") 
@@ -873,10 +946,10 @@ def main():
                     # print("Error in Azure API, switch to Claude API")
 
                     completion = ClaudeClient.chat.completions.create(
-                        model = "claude-3-5-sonnet-20240620",
-                        max_completion_tokens=8192,
+                        model = "o1-preview-2024-09-12",
+                        # max_completion_tokens=8192,
                         messages=messages,
-                        temperature=0.7,
+                        # temperature=0.7,
                     )
                     assistant_response = completion.choices[0].message
                     response_text = completion.choices[0].message.content
@@ -887,6 +960,12 @@ def main():
 
                     characters = transform_character_descriptions(characters)
                     save_plan_json(characters, f"{task_dir}/characters.json")
+                if assistant_response and step_name == "剧本编写":
+                    print("正在提取分镜脚本中...")
+                    story = response_text
+                    with open(f"{task_dir}/story.txt", "w") as f:
+                        f.write(story)
+
                 print(f"Agent Response: {response_text}")
                 print("-"*100)
 
@@ -911,8 +990,9 @@ def main():
             # Save Dict_for_plan to a file
             
             save_plan_json(Dict_for_plan, f"{task_dir}/Dict_for_plan.json")
+            save_plan_json([MessageToJson(m) for m in messages], f"{task_dir}/messages.json")
         
-        Execute_plan(plan,task, task_dir, characters=characters)
+        Execute_plan(plan,task, task_dir, characters=characters, story=story)
         
         
         # cnt = 0

@@ -53,7 +53,7 @@ def gen_img(prompt):
         if existing_image is not None:
             print(f"<GEN_IMAGE> prompt: {prompt} already exists")
             return existing_image
-        img_base64 = kling_imggen_agent(prompt)
+        img_base64 = kling_imggen_agent(prompt.replace("-",","))
         save_to_disk(img_base64, file_path)
     except Exception as e:
         print(f"Error in generating charactor: {str(e)}") 
@@ -294,12 +294,12 @@ def generate_all(video_task, music_task, tts_task, task_dir):
     # Create separate executors for each task category
     with ThreadPoolExecutor() as executor:
         start = time.time()
-        vid_results = executor.map(gen_video, *zip(*video_task), timeout=6000)
-        tts_results = executor.map(gen_tts, *zip(*tts_task), timeout=6000)
-        music_result = executor.submit(gen_music, " ".join(music_task), len(video_task) * 5)
+        vid_results = executor.map(gen_video, *zip(*video_task))
+        tts_results = executor.map(gen_tts, *zip(*tts_task))
+        music_result = executor.submit(gen_music, " ".join([task if task is not None else "" for task in music_task]), len(video_task) * 5)
 
         
-        final = concat_video(list(vid_results), music_result.result(timeout=600), list(tts_results), task_dir)
+        final = concat_video(list(vid_results), music_result.result(), list(tts_results), task_dir)
         end = time.time()
         print(f"Time taken: {end-start:.6f}")
 
