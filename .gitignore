@@ -186,3 +186,13 @@ asset/
 # VS-code
 
 .vscode
+ISG_agent/Models/DreamMover/
+ISG_agent/Models/DynamiCrafter/
+ISG_agent/Models/OpenVoice/
+ISG_agent/Models/UltraEdit/
+ISG_agent/Models/Wan2.1/
+ISG_agent/Models/flux-ip-adapter-v2/
+ISG_agent/Models/generative-models/
+ISG_agent/Models/x-flux/
+ISG_agent/src/
+ISV_eval/NovelConditionedVGen/Chinese-H-Novels/

@@ -13,8 +13,6 @@ KLING_URL = "http://localhost:7903"
 
 Hunyuan_URL = "http://localhost:7905"
 
-Hunyuan_I2V_URL = "http://localhost:6006"
-
 
 @retry(tries=3, delay=1)
 def generate_video_agent(prompt_list,seconds_per_screenshot=1):
