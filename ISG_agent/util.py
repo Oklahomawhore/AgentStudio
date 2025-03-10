@@ -9,18 +9,17 @@ from threading import Lock
 
 make_dir_lock = Lock()
 
-def download_video_and_save_as_mp4(video_url,file_name=None, save_directory="videos", seconds_per_screenshot=1) -> Tuple[str, List[str]]:
+def download_video(video_url, file_name=None, save_directory="videos") -> str:
     """
-    Downloads a video from the given URL, saves it as an MP4 file, and captures screenshots.
+    Downloads a video from the given URL and saves it as an MP4 file.
 
     Args:
         video_url (str): URL of the video to download.
-        save_directory (str): Directory to save the downloaded video and screenshots.
+        save_directory (str): Directory to save the downloaded video.
         filename (str): Name of the saved MP4 file.
-        seconds_per_screenshot (int): Interval in seconds for capturing screenshots.
 
     Returns:
-        dict: A dictionary containing the video file path and a list of base64-encoded screenshots.
+        str: Path to the saved video file.
     """
     try:
         # Ensure the save directory exists
@@ -36,7 +35,6 @@ def download_video_and_save_as_mp4(video_url,file_name=None, save_directory="vid
             "Upgrade-Insecure-Requests": "1",
         }
 
-        
         # Download the video
         response = requests.get(video_url, stream=True, headers=headers)
         response.raise_for_status()
@@ -44,15 +42,30 @@ def download_video_and_save_as_mp4(video_url,file_name=None, save_directory="vid
         # Define the full file path
         video_path = os.path.join(save_directory, file_name if file_name is not None else video_url.split("/")[-1])
 
-
         # Save the video
         with open(video_path, "wb") as video_file:
             for chunk in response.iter_content(chunk_size=8192):
                 video_file.write(chunk)
 
         print(f"Video successfully downloaded and saved to {video_path}")
+        return video_path
 
-        # Capture screenshots
+    except Exception as e:
+        print(f"Error in downloading video: {e}")
+        return None
+
+def capture_screenshots(video_path: str, seconds_per_screenshot: int = 1) -> List[str]:
+    """
+    Captures screenshots from a video file at specified intervals.
+
+    Args:
+        video_path (str): Path to the video file.
+        seconds_per_screenshot (int): Interval in seconds for capturing screenshots.
+
+    Returns:
+        List[str]: List of base64-encoded screenshots.
+    """
+    try:
         base64_screenshots = []
         cap = cv2.VideoCapture(video_path)
 
@@ -80,12 +93,30 @@ def download_video_and_save_as_mp4(video_url,file_name=None, save_directory="vid
 
         cap.release()
         print(f"Captured {len(base64_screenshots)} screenshots.")
-
-        return video_path, base64_screenshots
+        return base64_screenshots
 
     except Exception as e:
-        print(f"Error in downloading video or capturing screenshots: {e}")
-        return None
+        print(f"Error in capturing screenshots: {e}")
+        return []
+
+def download_video_and_save_as_mp4(video_url, file_name=None, save_directory="videos", seconds_per_screenshot=1) -> Tuple[str, List[str]]:
+    """
+    Downloads a video and captures screenshots using the separate download and screenshot functions.
+
+    Args:
+        video_url (str): URL of the video to download.
+        save_directory (str): Directory to save the downloaded video and screenshots.
+        filename (str): Name of the saved MP4 file.
+        seconds_per_screenshot (int): Interval in seconds for capturing screenshots.
+
+    Returns:
+        Tuple[str, List[str]]: Tuple containing video file path and list of base64-encoded screenshots.
+    """
+    video_path = download_video(video_url, file_name, save_directory)
+    if video_path:
+        screenshots = capture_screenshots(video_path, seconds_per_screenshot)
+        return video_path, screenshots
+    return None, []
 
 
 def process_image(file_path, output_path):
