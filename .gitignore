@@ -171,6 +171,7 @@ cython_debug/
 
 *.jpg
 *.png
+*.mp3
 
 # Output files
 
