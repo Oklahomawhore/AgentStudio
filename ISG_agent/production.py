@@ -71,7 +71,7 @@ def gen_video(prompt, image):
         if existing_video is not None:
             print(f"<GEN_VIDEO> prompt: {prompt} image: {image} already exists")
             return existing_video
-        video_list, screenshot_list = kling_text2video_agent(prompt)
+        video_list, screenshot_list = kling_img2video_agent(image, prompt)
         # time.sleep(10)
         # with open("imgs/dog1.txt", "r") as f:
         #     img_b64 = f.read().strip()

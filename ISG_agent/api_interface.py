@@ -13,6 +13,8 @@ KLING_URL = "http://localhost:7903"
 
 Hunyuan_URL = "http://localhost:7905"
 
+Hunyuan_i2v_URL = "http://localhost:7906"
+
 
 @retry(tries=3, delay=1)
 def generate_video_agent(prompt_list,seconds_per_screenshot=1):
@@ -91,7 +93,7 @@ def morph_images_agent(img_path1, img_path2, prompt):
 
 
 def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1) -> Tuple[str, List[str]]:
-    url = f"{Hunyuan_URL}/generate_image2video"  # Backend Flask API endpoint for img2video
+    url = f"{Hunyuan_i2v_URL}/generate_image2video"  # Backend Flask API endpoint for img2video
     data = {
         "image": image_url,
         "prompt": prompt,
@@ -106,7 +108,7 @@ def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1) -> Tuple[
 
 
 def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
-    url = f"{Hunyuan_URL}/generate_video"  # Backend Flask API endpoint for text2video
+    url = f"{Hunyuan_i2v_URL}/generate_video"  # Backend Flask API endpoint for text2video
     data = {
         "prompt": prompt_list,
         "seconds_per_screenshot" : seconds_per_screenshot
