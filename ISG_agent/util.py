@@ -40,7 +40,7 @@ def download_video(video_url, file_name=None, save_directory="videos") -> str:
         response.raise_for_status()
 
         # Define the full file path
-        video_path = os.path.join(save_directory, file_name if file_name is not None else video_url.split("/")[-1])
+        video_path = os.path.join(save_directory, file_name if file_name is not None else video_url.split("/")[-1].split('?')[0])
 
         # Save the video
         with open(video_path, "wb") as video_file:
@@ -54,13 +54,14 @@ def download_video(video_url, file_name=None, save_directory="videos") -> str:
         print(f"Error in downloading video: {e}")
         return None
 
-def capture_screenshots(video_path: str, seconds_per_screenshot: int = 1) -> List[str]:
+def capture_screenshots(video_path: str, seconds_per_screenshot: float = 1.0, end_time: float = None) -> List[str]:
     """
     Captures screenshots from a video file at specified intervals.
 
     Args:
         video_path (str): Path to the video file.
-        seconds_per_screenshot (int): Interval in seconds for capturing screenshots.
+        seconds_per_screenshot (float): Interval in seconds for capturing screenshots.
+        end_time (float): Time in seconds to stop capturing screenshots. If None, captures until end of video.
 
     Returns:
         List[str]: List of base64-encoded screenshots.
@@ -70,12 +71,17 @@ def capture_screenshots(video_path: str, seconds_per_screenshot: int = 1) -> Lis
         cap = cv2.VideoCapture(video_path)
 
         fps = cap.get(cv2.CAP_PROP_FPS)  # Get frames per second
-        frame_interval = int(fps * seconds_per_screenshot)  # Frames to skip for each screenshot
+        frame_interval = round(fps * seconds_per_screenshot)  # Frames to skip for each screenshot
+        frame_interval = max(1, frame_interval)  # Ensure at least 1 frame interval
 
         frame_count = 0
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
+                break
+
+            current_time = frame_count / fps
+            if end_time and current_time > end_time:
                 break
 
             if frame_count % frame_interval == 0:  # Capture frame
