@@ -40,7 +40,7 @@ def generate_video_request(data):
 
         # Prepare the data to send in the POST request
         payload = {
-            "model_name": "kling-video_std_5",
+            "model_name": "kling-v1-6",
             "prompt": data['prompt'],
             "negative_prompt": data.get('negative_prompt', ''),
             "cfg_scale": data.get('cfg_scale', 0.5),
@@ -60,6 +60,7 @@ def generate_video_request(data):
             task_id = response_data['data']['task_id']
             return task_id
         else:
+            print(response_data['message'])
             return None
     except Exception as e:
         print(f"Error in generating video: {e}")
@@ -159,7 +160,7 @@ def generate_image2video_request(data):
         
         # Prepare the data to send in the POST request
         payload = {
-            "model_name": "kling-video_std_5",
+            "model_name": "kling-v1-6",
             "mode": data.get('mode', 'std'),
             "duration": str(data.get('duration', 5)),
             "image": base64_encoded_image,
@@ -178,6 +179,7 @@ def generate_image2video_request(data):
             task_id = response_data['data']['task_id']
             return task_id
         else:
+            print(response_data['message'])
             return None
     except Exception as e:
         print(f"Error in generating video: {e}")

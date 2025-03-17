@@ -16,6 +16,7 @@ import requests
 import json
 from pydub import AudioSegment  # For concatenating WAV files
 import re
+import base64
 
 dotenv.load_dotenv()
 
@@ -60,7 +61,7 @@ def gen_img(prompt):
     # save base64 img to file and return path
     return img_base64
 
-def gen_video(prompt, image):
+def gen_video(prompt, image, i2v=False):
     try:
         prompt_hash = generate_hash(prompt + image)  # Combine image path for uniqueness
         file_path = f"videos/{prompt_hash}.pkl"
@@ -71,7 +72,10 @@ def gen_video(prompt, image):
         if existing_video is not None:
             print(f"<GEN_VIDEO> prompt: {prompt} image: {image} already exists")
             return existing_video
-        video_list, screenshot_list = kling_img2video_agent(image, prompt)
+        if i2v:
+            video_list, screenshot_list = kling_img2video_agent(image, prompt)
+        else:
+            video_list, screenshot_list = kling_text2video_agent(prompt)
         # time.sleep(10)
         # with open("imgs/dog1.txt", "r") as f:
         #     img_b64 = f.read().strip()
@@ -140,9 +144,13 @@ def extract_conversation(prompt, speaker):
     Returns:
         str: The cleaned conversation for the speaker.
     """
+    print(prompt)
     if prompt != '' and speaker not in prompt:
         # Split on the first colon when speaker is not explicitly in the prompt
-        conversation = prompt.split("：", 1)[1]
+        try:
+            conversation = prompt.split("：", 1)[1]
+        except:
+            conversation = prompt.split(':', 1)[1]
     else:
         # Regex pattern to match <#speaker#>: or <speaker>:
         pattern = rf"<#?{re.escape(speaker)}#?>(.*?)(<#?.*?#?>|$)"
@@ -157,6 +165,8 @@ def extract_conversation(prompt, speaker):
 
     # Remove anything enclosed in () or （）
     conversation = re.sub(r"[\(（][^)）]*[\)）]", "", conversation).strip()
+    conversation = conversation.replace('"', '').replace('“','')
+
 
     return conversation
 
@@ -289,17 +299,48 @@ def concat_video(video_list, music_path, tts_paths, task_dir):
         print(f"Error during video concatenation: {e}")
         return None
 
-
 def generate_all(video_task, music_task, tts_task, task_dir):
     # Create separate executors for each task category
     with ThreadPoolExecutor() as executor:
         start = time.time()
-        vid_results = executor.map(gen_video, *zip(*video_task))
+        
+        # First generate videos that need screenshots
+        t2v_tasks = [task for task in video_task if task[1] == ""]
+        vid_results_stage_1 = list(executor.map(gen_video, *zip(*t2v_tasks)))
+        
+        # Process remaining tasks sequentially if they need last frame
+        vid_results = []
+        last_screenshot = None
+        
+        for i, task in enumerate(video_task):
+            if task[1] == "":
+                # Tasks already processed in stage 1
+                result = vid_results_stage_1.pop(0)
+                # Save screenshot to disk
+                screenshot_path = f"{task_dir}/screenshot_{i}.png"
+                image_bytes = base64.b64decode(result[1][-1])
+                with open(screenshot_path, "wb") as f:
+                    f.write(image_bytes)
+                last_screenshot = screenshot_path
+                vid_results.append(result)
+            elif task[1] == "<LastFrame>":
+                # Execute i2v tasks one by one to use last frame
+                if last_screenshot:
+                    result = gen_video(task[0], last_screenshot, i2v=True)
+                    # Save new screenshot
+                    screenshot_path = f"{task_dir}/screenshot_{i}.png"
+                    image_bytes = base64.b64decode(result[1][-1])
+                    with open(screenshot_path, "wb") as f:
+                        f.write(image_bytes)
+                    last_screenshot = screenshot_path
+                    vid_results.append(result)
+                else:
+                    raise Exception("Need last frame for an i2v task.")
+        # Generate TTS and music in parallel
         tts_results = executor.map(gen_tts, *zip(*tts_task))
         music_result = executor.submit(gen_music, " ".join([task if task is not None else "" for task in music_task]), len(video_task) * 5)
 
-        
-        final = concat_video(list(vid_results), music_result.result(), list(tts_results), task_dir)
+        final = concat_video(vid_results, music_result.result(), list(tts_results), task_dir)
         end = time.time()
         print(f"Time taken: {end-start:.6f}")
 

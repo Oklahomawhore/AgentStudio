@@ -2,7 +2,7 @@ import os
 import json
 from argparse import ArgumentParser
 from Prompt.New_system import PLANNING_PROMPT
-from Prompt.New_planning import PREPRODUCTION_PROMPTS
+from Prompt.New_planning_i2v import PREPRODUCTION_PROMPTS
 import base64
 from tqdm import tqdm
 import re
@@ -338,7 +338,7 @@ Given the following previous response text:
     }},
     {{
         "Step": 3,
-        "Task": "Call_tool",
+        "Task": "Call_tool",∏
         "Input_text": "Alice prepares a picnic basket with fresh fruits and sandwiches for her children. She smiles warmly as she watches them play.",
         "Input_images": ["<GEN_img1>"],
         "Output": "<WAIT>"
@@ -502,7 +502,7 @@ def extract_plan_from_response(response_text, plan_file,characters={}):
                     for i in range(num_steps):
                         steps.append({
                             "Step": step_num,
-                            "Task": "GenVideo",
+                            "Task": scene.get('type', 'GenVideo'),
                             "Input_text": f"{scene.get('scene', '')} {scene.get('style', '')} {scene.get('motion', '')} {scene['content'][i*(len(scene['content']) // num_steps):(i+1)*(len(scene['content']) // num_steps)]}",
                             "Music_prompt" : scene['music'] if 'music' in scene else "",
                             "TTS_prompt" : scene['dialogue'] if 'dialogue' in scene else "",
@@ -515,7 +515,7 @@ def extract_plan_from_response(response_text, plan_file,characters={}):
                 # only one step
                 steps.append({
                     "Step": step_num,
-                    "Task": "GenVideo",
+                    "Task": scene.get('type', 'GenVideo'),
                     "Input_text": f"{scene.get('scene', '')} {scene.get('style', '')} {scene.get('motion', '')} {scene.get('content', '')}",    
                     "Music_prompt" :  scene['music'] if 'music' in scene else "",
                     "TTS_prompt" : scene['dialogue'] if 'dialogue' in scene else "",
@@ -758,9 +758,20 @@ def extract_structure(benchmark):
     "Answer_str": " ".join(golden_list)
     }
 
-def conditional_video_prompt(input_text, story):
+def conditional_video_prompt(input_text, story, i2v=False):
     messages  = []
-    messages.append({"role": "user", "content": "作为一个视频生成提示词编写达人，你会根据背景故事和当前镜头内容来编写视频生成提示词。给你一段背景故事和当前的镜头内容，你要给出视频生成模型提示词。你的提示词要栩栩如生，细节丰富，人物清晰，美感十足。你的提示词要让观众不通过其他内容就可以直接想象到一副生动的画面。提示词大约150～300字之间。**注意**：在编写提示词的时候遇到<#角色名#>这样的格式要原封不动的保留。"})
+    messages.append({"role": "developer", "content": ("作为一个视频生成提示词编写达人，你会根据背景故事和当前镜头内容来编写视频生成提示词。"
+                                                 "给你一段背景故事和当前的镜头内容，你要给出视频生成模型提示词。你的提示词要精炼准确，"
+                                                 "**注意**：在编写提示词的时候遇到<#角色名#>这样的格式要原封不动的保留。")})
+
+    messages.append({"role" : "user", "content" : ("Tips for Writing prompts"
+                            "Use Concise Prompts: To effectively guide the model's generation, keep your prompts short and to the point."
+                            "Include Key Elements: A well-structured prompt should cover:"
+                            "Main Subject: Specify the primary focus of the video."
+                            "Action: Describe the main movement or activity taking place."
+                            "Background (Optional): Set the scene for the video."
+                            "Camera Angle (Optional): Indicate the perspective or viewpoint."
+                            "Avoid Overly Detailed Prompts: Lengthy or highly detailed prompts can lead to unnecessary transitions in the video output.")})
     messages.append({"role": "user", "content": story})
     messages.append({"role": "user", "content": input_text})
     print("-" * 50)
@@ -816,7 +827,7 @@ def Execute_plan(plan, task, task_dir, characters={}, story=""):
             print(f"Character: {character_name} - {character_description}")
             img = gen_img(character_description)
             image_bytes = base64.b64decode(img)
-            with open(f"{task_dir}/{character_name}.png", "wb") as f:
+            with open(f"{task_dir}/{character_name.replace('/','')}.png", "wb") as f:
                 f.write(image_bytes)
             character_img[character_name] = f"{task_dir}/{character_name}.png"
         with open(f"{task_dir}/characters_img.json", "w", encoding='utf-8') as f:
@@ -834,7 +845,7 @@ def Execute_plan(plan, task, task_dir, characters={}, story=""):
     for i,step in enumerate(plan):
         Task = step.get("Task", "")
         
-        if Task == "GenVideo":
+        if Task == "t2v":
             # Generate video
             # In this step, we expand our content into video prompt, conditioned on the overall storyline.
             video_prompt = video_prompts[str(step['Step'])] if str(step['Step']) in video_prompts else conditional_video_prompt(step['Input_text'], story)
@@ -855,7 +866,27 @@ def Execute_plan(plan, task, task_dir, characters={}, story=""):
             if len(voice_direction) == 0 and step['TTS_prompt'] != "无" and step['TTS_prompt'] != "":
                 voice_direction["narrator"] = "30-year old female, soft voice, kind and warm"
             tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] != "无" else ("", {}))
-    
+        elif Task == "i2v":
+            
+            # In this step, we expand our content into video prompt, conditioned on the overall storyline.
+            video_prompt = video_prompts[str(step['Step'])] if str(step['Step']) in video_prompts else conditional_video_prompt(step['Input_text'], story, i2v=True)
+            step['Input_text'] = video_prompt
+            video_prompts[str(step['Step'])] = video_prompt
+            
+            # for now, image to video cannot handle character reference, so substitute with character descriptions in content
+            video_tasks.append((replace_characters_in_content(video_prompt, characters), "<LastFrame>"))
+        
+            # Generate music
+            music_tasks.append(step['Music_prompt']) if step['Music_prompt'] != "无" else ("", [])
+        
+            # Generate TTS
+            voice_direction = {}
+            for character in extract_character_from_content(step['TTS_prompt']):
+                if character in characters:
+                    voice_direction[character] =  characters[character]
+            if len(voice_direction) == 0 and step['TTS_prompt'] != "无" and step['TTS_prompt'] != "":
+                voice_direction["narrator"] = "30-year old female, soft voice, kind and warm"
+            tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] != "无" else ("", {}))
     with open(f"{task_dir}/video_prompt.json", "w", encoding='utf-8') as f:
         json.dump(video_prompts, f, indent=4,ensure_ascii=False)
     final = generate_all(video_tasks, music_tasks, tts_tasks, task_dir)
@@ -956,7 +987,7 @@ def main():
                 if assistant_response and step_name == "角色提取":
                     print("正在提取角色中...")
                     characters = extract_json_from_response(response_text)
-                    characters = json.loads(characters)
+                    characters = json.loads(characters)  
 
                     characters = transform_character_descriptions(characters)
                     save_plan_json(characters, f"{task_dir}/characters.json")
