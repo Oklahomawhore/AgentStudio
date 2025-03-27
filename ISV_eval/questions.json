@@ -1,0 +1,312 @@
+{
+    "part_1": {
+      "global_narrative_assessment": {
+        "yes_no": [
+          {
+            "question": "Does the movie have a clear central theme or message?",
+            "answer": null
+          },
+          {
+            "question": "Is the movie’s storyline easy to follow from beginning to end?",
+            "answer": null
+          },
+          {
+            "question": "Are the characters' motivations clear and consistent throughout the film?",
+            "answer": null
+          },
+          {
+            "question": "Are all plotlines tied up in a coherent manner by the end of the movie?",
+            "answer": null
+          },
+          {
+            "question": "Does the movie maintain a consistent tone throughout?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How would you rate the overall coherence of the movie’s narrative?",
+            "score": null
+          },
+          {
+            "question": "How well do the character arcs evolve throughout the story?",
+            "score": null
+          },
+          {
+            "question": "How effective is the pacing of the movie? Does it keep you engaged throughout?",
+            "score": null
+          },
+          {
+            "question": "How clear is the cause and effect between major plot points?",
+            "score": null
+          },
+          {
+            "question": "How well does the movie build tension and emotional investment over time?",
+            "score": null
+          },
+          {
+            "question": "How well does the visual storytelling (cinematography, shot composition) complement the narrative?",
+            "score": null
+          },
+          {
+            "question": "How well does the dialogue advance the plot and develop characters?",
+            "score": null
+          },
+          {
+            "question": "How original or unique is the narrative approach?",
+            "score": null
+          }
+        ]
+      }
+    },
+    "part_2": {
+      "detailed_shot_assessment": {
+        "yes_no": [
+          {
+            "question": "Does this shot directly advance the narrative or character development?",
+            "answer": null
+          },
+          {
+            "question": "Does this shot reflect the tone or theme established in the rest of the film?",
+            "answer": null
+          },
+          {
+            "question": "Is this shot visually striking or significant in terms of cinematography?",
+            "answer": null
+          },
+          {
+            "question": "Does this shot feel necessary or could it have been omitted without affecting the overall film?",
+            "answer": null
+          },
+          {
+            "question": "Does this shot fit the pacing of the movie, either speeding up or slowing down the flow appropriately?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How effective is this shot in contributing to the story or emotional impact of the movie?",
+            "score": null
+          },
+          {
+            "question": "How well does this shot connect to the larger narrative or themes established earlier in the film?",
+            "score": null
+          },
+          {
+            "question": "How does this shot contribute to character development (if applicable)?",
+            "score": null
+          },
+          {
+            "question": "Does this shot have a lasting impact or memorable quality that enhances the overall film?",
+            "score": null
+          },
+          {
+            "question": "How does this shot contrast with or complement surrounding shots (in terms of tone, color, movement)?",
+            "score": null
+          }
+        ],
+        "global_impact": [
+          {
+            "question": "Would you consider this shot beneficial to the overall movie?",
+            "answer": null
+          },
+          {
+            "question": "Would the movie lose something important if this shot was removed?",
+            "answer": null
+          },
+          {
+            "question": "Does this shot harm the movie’s overall narrative or pacing?",
+            "answer": null
+          }
+        ]
+      }
+    },
+    "part_3": {
+      "visual_aesthetics": {
+        "yes_no": [
+          {
+            "question": "Does the cinematography enhance the overall atmosphere of the movie?",
+            "answer": null
+          },
+          {
+            "question": "Is the color palette used effectively to convey mood and tone?",
+            "answer": null
+          },
+          {
+            "question": "Are the camera angles and movements visually dynamic and engaging?",
+            "answer": null
+          },
+          {
+            "question": "Does the lighting design support the narrative or themes?",
+            "answer": null
+          },
+          {
+            "question": "Is the overall visual composition balanced and aesthetically pleasing?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How visually stunning is the cinematography in relation to the story?",
+            "score": null
+          },
+          {
+            "question": "How effective is the use of visual effects (if applicable)?",
+            "score": null
+          },
+          {
+            "question": "How well does the visual style contribute to the film’s unique identity?",
+            "score": null
+          }
+        ]
+      }
+    },
+    "part_4": {
+      "sound_design": {
+        "yes_no": [
+          {
+            "question": "Is the sound design immersive and supportive of the film’s atmosphere?",
+            "answer": null
+          },
+          {
+            "question": "Does the sound editing blend seamlessly with the visuals?",
+            "answer": null
+          },
+          {
+            "question": "Is the film’s sound mix clear and well-balanced (dialogue, sound effects, and music)?",
+            "answer": null
+          },
+          {
+            "question": "Does the sound design contribute meaningfully to emotional beats or themes?",
+            "answer": null
+          },
+          {
+            "question": "Are the sound effects appropriate and realistic for the world of the movie?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How effective is the overall sound design in supporting the emotional impact of the film?",
+            "score": null
+          },
+          {
+            "question": "How well does the soundtrack/music enhance the narrative and atmosphere?",
+            "score": null
+          },
+          {
+            "question": "How memorable or unique is the sound design or music of the movie?",
+            "score": null
+          }
+        ]
+      }
+    },
+    "part_5": {
+      "acting_performances": {
+        "yes_no": [
+          {
+            "question": "Do the performances feel authentic and emotionally grounded?",
+            "answer": null
+          },
+          {
+            "question": "Do the actors effectively convey the motivations and inner lives of their characters?",
+            "answer": null
+          },
+          {
+            "question": "Are the performances well-balanced, with no overacting or underacting?",
+            "answer": null
+          },
+          {
+            "question": "Do the performances build a strong connection between the audience and the characters?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How effective are the lead actor(s) in driving the emotional core of the film?",
+            "score": null
+          },
+          {
+            "question": "How well do the supporting actors contribute to the overall film?",
+            "score": null
+          },
+          {
+            "question": "How believable are the character relationships portrayed through acting?",
+            "score": null
+          }
+        ]
+      }
+    },
+    "part_6": {
+      "directorial_choices": {
+        "yes_no": [
+          {
+            "question": "Does the director make bold and creative choices that enhance the film?",
+            "answer": null
+          },
+          {
+            "question": "Does the direction serve to strengthen the themes and narrative?",
+            "answer": null
+          },
+          {
+            "question": "Are the pacing, tone, and visuals effectively managed by the director?",
+            "answer": null
+          },
+          {
+            "question": "Does the director maintain a strong, consistent vision throughout the film?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How well does the director handle the balance between character-driven moments and larger action sequences?",
+            "score": null
+          },
+          {
+            "question": "How effective is the director’s use of mise-en-scène (set design, props, costumes)?",
+            "score": null
+          },
+          {
+            "question": "How well does the director utilize pacing to build tension and engagement?",
+            "score": null
+          }
+        ]
+      }
+    },
+    "part_7": {
+      "technical_execution": {
+        "yes_no": [
+          {
+            "question": "Is the film technically proficient, with no major issues in editing or continuity?",
+            "answer": null
+          },
+          {
+            "question": "Does the editing style contribute to the flow and rhythm of the story?",
+            "answer": null
+          },
+          {
+            "question": "Is the film’s sound and image synchronization seamless and well-crafted?",
+            "answer": null
+          },
+          {
+            "question": "Is the film's technical execution (e.g., editing, special effects, CGI) of high quality?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How smooth and professional is the editing of the film?",
+            "score": null
+          },
+          {
+            "question": "How well are special effects and CGI integrated into the story?",
+            "score": null
+          },
+          {
+            "question": "How visually and technically polished is the movie overall?",
+            "score": null
+          }
+        ]
+      }
+    }
+  }

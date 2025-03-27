@@ -1,0 +1,164 @@
+You are responsible for writing a detailed description of a video by which a testee will assess the quality of the video. Look at the video and write the transcript according to the following instructions.
+
+To ensure the testee has a comprehensive understanding of the specific shot they are assessing, it is essential to extract and describe all the key elements of the shot in a detailed manner. The goal is to provide the testee with enough context to evaluate the shot accurately in relation to the overall narrative, aesthetic, and emotional impact.
+
+Here’s a detailed instruction guide for transcribing a shot and writing its description:
+
+⸻
+
+Detailed Instruction for Shot Description:
+
+⸻
+
+1. Shot Identification and Context
+
+1.1. Shot Number/Scene
+	•	Contextualize the shot by identifying the scene and shot number in the movie (e.g., “Scene 15, Shot 3”). If possible, include the time stamp of the shot (e.g., “10:34 – 10:40”).
+
+1.2. Scene Summary
+	•	Provide a brief overview (1-2 sentences) of the scene where the shot is located. This should include:
+	•	The setting (e.g., urban street, living room).
+	•	The key event or action taking place (e.g., character confrontation, discovery of an object).
+	•	Mention of the main characters involved in the shot, even if not in direct focus.
+
+Example:
+“Scene 15 depicts a tense confrontation between the protagonist (Alice) and the antagonist (John) in a dark alley. In this shot, Alice is backing away, while John approaches menacingly.”
+
+⸻
+
+2. Shot Composition and Cinematography
+
+2.1. Camera Angle
+	•	Describe the angle at which the camera is positioned relative to the subject.
+	•	Eye level: The camera is placed at the character’s eye level, creating a neutral or balanced perspective.
+	•	High angle: The camera looks down at the subject, often conveying a sense of vulnerability or inferiority.
+	•	Low angle: The camera looks up at the subject, often conveying power, dominance, or superiority.
+	•	Dutch angle (tilt): The camera is tilted sideways, often used to indicate disorientation, unease, or tension.
+
+2.2. Shot Size/Framing
+	•	Describe the size of the shot and how it frames the subject:
+	•	Extreme Close-Up (ECU): Focuses on a small detail, often a facial feature or object.
+	•	Close-Up (CU): Shows a character’s face, typically used for emotional intensity.
+	•	Medium Shot (MS): Typically shows the character from the waist up, allowing for interaction between characters.
+	•	Long Shot (LS): The full body of a character or wide scene showing environmental context.
+	•	Extreme Long Shot (ELS): A wide view of the scene, often used to establish location.
+
+2.3. Camera Movement
+	•	Describe any camera movement used in the shot:
+	•	Tracking/Dolly: The camera moves along with the subject, often used to follow action.
+	•	Zoom: The lens changes focus to either zoom in or out on the subject, altering the perceived proximity.
+	•	Tilt/Pan: The camera tilts up or down (tilt) or pans left or right (pan) without moving its position.
+	•	Handheld: The camera shakes slightly, creating a sense of immediacy or chaos.
+
+Example:
+“The shot is a medium shot (MS) at eye level, with a slow zoom-in on Alice’s face as she reacts in fear. The camera starts with a slight handheld shake, adding tension to the moment.”
+
+⸻
+
+3. Lighting and Color
+
+3.1. Lighting Setup
+	•	Describe the lighting used in the shot:
+	•	High Key: Bright and even lighting, often associated with lighthearted or neutral scenes.
+	•	Low Key: Dark, shadow-heavy lighting, often associated with mystery or suspense.
+	•	Backlighting: The light source is behind the subject, creating silhouettes or halos.
+	•	Practical Lighting: The light sources within the scene are natural or visible (lamps, street lights).
+
+3.2. Color Scheme
+	•	Describe the dominant colors in the shot and their potential symbolic meaning:
+	•	Are there warm colors (reds, oranges) conveying energy, passion, or danger?
+	•	Are there cool colors (blues, greens) indicating calmness, sadness, or mystery?
+	•	Is there a particular contrast between light and dark areas?
+
+Example:
+“The lighting is low key, with shadows cast across Alice’s face, enhancing the feeling of suspense. The color scheme is dominated by dark blues and blacks, creating a cold, eerie atmosphere.”
+
+⸻
+
+4. Sound and Music
+
+4.1. Sound Design
+	•	Describe the sound in this particular shot:
+	•	Diegetic Sound: Sounds that come from within the story world (dialogue, footsteps, wind).
+	•	Non-Diegetic Sound: Sounds that are outside the story world (background score, voiceover).
+	•	Is there ambient noise (wind, birds) or silence that adds tension?
+	•	Are there sound effects (gunshot, door creak) that enhance the visual experience?
+
+4.2. Music
+	•	If there is music in the shot, describe:
+	•	The genre or tone (is it orchestral, electronic, etc.?).
+	•	Whether the music is foreground or background.
+	•	How it aligns with the emotion of the scene (tense, dramatic, serene).
+
+Example:
+“The sound design is minimal, with only the sound of Alice’s heavy breathing and the distant hum of traffic. A low, ominous drone plays in the background, building tension.”
+
+⸻
+
+5. Acting and Character Expression
+
+5.1. Actor’s Performance
+	•	Describe the character’s expression and body language in this shot:
+	•	Is the character showing fear, anger, confusion? Are they making eye contact with another character, or are they looking away?
+	•	Is the actor’s performance subtle or dramatic?
+
+5.2. Interaction with Other Characters
+	•	How does this shot show interaction between characters (if applicable)? Are they physically close or distant? Is there a visible power dynamic in their body language?
+
+Example:
+“Alice’s eyes are wide with terror, and her hands tremble as she takes a step back. Her posture is defensive, suggesting she feels cornered.”
+
+⸻
+
+6. Emotional Tone and Narrative Impact
+
+6.1. Emotional Tone
+	•	Describe the emotional tone of the shot:
+	•	Does it evoke tension, sadness, joy, nostalgia? What is the intended emotional effect on the audience?
+	•	Is there an underlying tension or calmness? Is the audience meant to feel discomfort, suspense, or relief?
+
+6.2. Narrative Contribution
+	•	Explain the shot’s role in the overall narrative:
+	•	Does it advance the plot, or is it more about character development or creating atmosphere?
+	•	How does this shot relate to the scenes before and after it in terms of pacing and emotional journey?
+
+Example:
+“The emotional tone of this shot is tense and fearful. Alice’s retreat indicates that she feels physically threatened by John. The shot contributes to the escalating conflict between the two characters and sets the stage for the climactic confrontation.”
+
+⸻
+
+7. Additional Notes (Optional)
+	•	Any unique techniques or creative decisions by the director that stood out in this shot (e.g., use of symbolism, non-traditional framing)?
+	•	If the shot uses visual metaphors or motifs, explain them here.
+
+⸻
+
+Final Example Shot Description (All Together)
+
+Shot Identification and Context:
+	•	“Scene 15, Shot 3 – Time: 10:34 to 10:40. This shot is set in a dark alley where Alice confronts John, the antagonist. Alice is trying to escape but is cornered.”
+
+Camera Angle & Framing:
+	•	“Medium shot at eye level, capturing Alice’s fearful expression as she backs away. The camera is static, allowing for a full view of Alice’s body language.”
+
+Lighting & Color:
+	•	“Low-key lighting casts long shadows on Alice’s face, emphasizing her fear. The background is dark, with only a faint streetlight illuminating the edges. The color palette is primarily dark blues and blacks, creating a cold, sinister atmosphere.”
+
+Sound & Music:
+	•	“The sound is sparse—just the echo of Alice’s footsteps and the distant hum of city noise. A low drone builds in the background, signaling growing danger.”
+
+Acting & Expression:
+	•	“Alice’s eyes are wide and her breathing is heavy. Her hands tremble as she looks over her shoulder, glancing nervously toward John. Her body language is defensive, almost as if she is ready to flee.”
+
+Emotional Tone & Narrative Impact:
+	•	“The shot conveys a sense of dread and fear, heightening the tension in the scene. It shows Alice’s vulnerability and foreshadows a confrontation. This shot contributes to the build-up of the narrative conflict between the two characters.”
+
+⸻
+
+Summary for the Testee:
+
+Before you begin the test, carefully review the shot description provided for each scene. Pay close attention to all the visual, auditory, and narrative elements. Once you’ve internalized the shot’s meaning and role in the film, answer the questions about how it contributes to the overall movie. Focus on both micro-level (details within the shot) and macro-level (its impact on the larger narrative) aspects.
+
+⸻
+
+By following this structure, the shot’s essential elements are thoroughly documented, giving the testee all the information they need to assess the shot accurately in relation to the whole film.

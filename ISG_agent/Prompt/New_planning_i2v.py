@@ -1,417 +1,157 @@
 PREPRODUCTION_PROMPTS = {
-    "规划": """
-    I need a short-video script with 2-3 minutes long according to a raw story text. Use the ''Hollywood Three-act structure`` to develop the story.
+    "剧本规划": """
+    I need a short-video script with 2-3 minutes long according to a story ouline draft. Use the ''Hollywood Three-act structure`` to develop the story. Since the video length is limited, make the story as simple as possible.
     Three-act icludes:  Setup, the Confrontation, and the Resolution.
-    [剧本规划]
-    剧名：
-    主要人物：
-    故事背景：
-    人物关系：
-    立意：
-    主题：
 
-    例如：
-    用户：聊斋故事：考城隍 予姊丈之祖，宋公讳焘，邑廪生。一日，病卧，见吏人持牒，牵白颠马来，云：“请赴试。”公言：“文宗未临，何遽得考？”吏不言，但敦促之。公力疾乘马从去，路甚生疏。至一城郭，如王者都。移时入府廨，宫室壮丽。上坐十馀官，都不知何人，惟关壮缪可识。檐下设几、墩各二，先有一秀才坐其末，公便与连肩。几上各有笔札。俄题纸飞下。视之，八字，云：“一人二人，有心无心。”二公文成，呈殿上。公文中有云：“有心为善，虽善不赏；无心为恶，虽恶不罚。”诸神传赞不已。召公上，谕曰：“河南缺一城隍，君称其职。”公方悟，顿首泣曰：“辱膺宠命，何敢多辞。但老母七旬，奉养无人，请得终其天年，惟听录用。”上一帝王像者，即命稽母寿籍。有长须吏，捧册翻阅一过，白：“有阳算九年。”共踌躇间，关帝曰：“不妨令张生摄篆九年，瓜代可也。”乃谓公：“应即赴任，今推仁孝之心，给假九年。及期，当复相召。”又勉励秀才数语。二公稽首并下。秀才握手，送诸郊野。自言长山张某。以诗赠别，都忘其词，中有“有花有酒春常在，无烛无灯夜自明”之句。
-    公既骑，乃别而去。及抵里，豁若梦寤。时卒已三日。母闻棺中呻吟，扶出，半日始能语。问之长山，果有张生，于是日死矣。后九年，母果卒。营葬既毕，浣濯入室而殁。其岳家居城中西门内，忽见公镂膺朱[巾+贲]，舆马甚众，登其堂，一拜而行。相共惊疑，不知其为神。奔讯乡中，则已殁矣。
-    公有自记小传，惜乱后无存，此其略耳。
- 
-    [剧本规划]
-    剧名： 考城隍
-    主要人物： 宋公，阎王爷（帝王模样的人），张秀才
-    故事背景：清代中期，这个时期社会上存在着许多封建迷信和荒诞不经的传说故事，同时又有一些科学技术的发展和启蒙思想的传播，这为《聊斋志异》的创作提供了一定的社会背景。
-    人物关系：宋公是一个秀才，是说话人的姊丈，张秀才是一个邻村的秀才，阎王爷是中国古代传说中的阎罗王，是地府的主，在这篇故事中宋公和张秀才是素不相识的关系，阎罗王很早就知道宋公，但未曾见过，一直想招他来地府工作
-    立意：一人二人，有心无心。这个故事试图从生死、当官、孝悌的角度展现主人公宋公的孝心、张秀才看淡生死的豁达，有花有酒春常在，无烛无灯夜自明！不仅已写实的方法道出城隍庙上贡的繁华，又从侧面表达了自己积极向上的胸襟
-    主题：在这篇小说中，蒲松龄不仅借濒死回生的故事讲述赏善罚淫的宗旨，更重要的是通过“有心为善，虽善不赏；无心作恶，虽恶不罚”楬橥了衡量作品中人物的价值体系标准，从哲学和美学的层面表述了《聊斋志异》所展现的理念。“有花有酒春常在，无烛无灯夜自明”，一方面暗示了故事的非人间的环境，同时体现了作者悠然自得、昂然向上的胸襟。你可以把它理解为贫困潦倒的生活中的达观从容，也可以理解为仕途不顺利境遇下的坚韧不拔，更可以理解为作者的胸襟怀抱——一种从容的生活态度。
+    Act 1: Step
+    establish the main characters, their relationships, and the world they live in.
+
+    Act 2: Confrontation
+    depicts the protagonist's attempt to resolve the problem initiated by the first turning point, only to find themselves in ever worsening situations.
+
+    Act 3: Resolution
+    the resolution of the story and its subplots. The climax is the scene or sequence in which the main tensions of the story are brought to their most intense point and the dramatic question answered, leaving the protagonist and other characters with a new sense of who they really are. 
+
+    Think about the main character's childhood memory or life encounters that leads the main character to where he/she is today.
     """,
     "剧本编写": """
-    撰写一个清晰且具有吸引力的剧本，确保其与[剧本规划]中的内容相一致。
-
-    1. 剧本中的人物对话要生动有趣，语言幽默，情节要有反转，可以使用倒叙，伏笔，蒙太奇等高阶技巧，快节奏、氛围搞笑、立意要稍有深度且好理解
-    2. 人物对话要符合人物性格，要有个性，不要让人物对话显得单调无趣
-    3. 故事情节要有逻辑性，不要出现跳跃性太大的情节
-    4. 故事情节要有高潮，要有情节的发展，不要让故事显得平淡无味
-    5. 故事情节要有反转，要有出人意料的情节发展，不要让故事显得太过平淡
-    6. 故事情节要有情感，要有情感的表达，不要让故事显得太过冷漠
-    7. 故事情节要有深度，要有深度的思考，不要让故事显得太过肤浅
-    8. 故事情节要有意义，要有意义的表达，不要让故事显得太过无聊
-
-    
-    例如：
-    [剧本]
-    《考城隍》
-    [第一幕： 赴考]
-    [清朝中期一户做官的人家里，宋公（50岁上下，清瘦带着书卷气）正躺在病床上，他的病床是那种古代常见的木制床榻，前景时昏黄的蜡烛灯，两个侍女和宋公的小妾围在床边，小妾身穿朴素但是半透明的薄纱对襟衣物，面容俊俏，身型凹凸有致。]
-    [少时，屋内的烛光渐渐昏暗起来，朦胧中宋公看见一个官差拿着官府文书，牵着一匹额上生有白毛的马走上前来]
-    官差：时间已到，请先生去参加考试。
-    宋公（向官差）：主考的学政姥爷没来，怎么突然举行考试呢？
-    [官差不言]
-    宋公（向小妾）：我去去就回，告诉大姐我去考试了。
-
-
-    [第二幕： 考试]
-    [宋公骑着白马，跟着官差，一路上路途生疏，到了一座城郭，城郭内宫殿壮丽，上坐十馀官，都不知何人，惟关壮缪可识。]
-    [堂下殿檐前放有几案、坐墩各两个，已经先有一个秀才坐在了下首，宋先生便挨着他坐下。每张桌子上都放着纸和笔。一会儿，殿堂上飞下一张写有题目的卷子来。宋先生一看，上面写着八个字：“一人二人，有心无心。”]
-    [宋先生和张秀才写完文章，呈给殿上。]
-    [宋先生的文章里有这样一句话：“有心去做好事，虽然是做了好事，但不应给他奖励；不是故意地做坏事，虽然做了坏事，也可以不给他处罚。”殿上各位官员一边传看一边不住地称赞。]
-    传令官甲（戴着牛头面具，语气威严， 高声）：传宋先生上殿。
-    [宋先生上前]
-    阎罗王：河南那个地方缺一位城隍，你去担任这个职务很合适。
-    [宋先生这时恍然大悟， 一边叩头一边哭]
-    宋先生（哭）：“我蒙此重任，怎么敢推辞呢？但家中老母已经七十多岁了，无人奉养。请允许老母死了以后，再来听从调用。”
-    [各官员交头接耳，面露难色]
-    关圣帝君：不妨让张生代替你担任城隍九年，然后再让他去接任。
-    阎罗王：本应让你立即上任，现在念你有仁孝之心，给你九年的假期。到时再召你前来。
-    [两秀才叩头谢恩，然后离开]
-
-    [第三幕：送别]
-    [郊外，竹林中，四处飘着白色的雾气， 似乎是清晨，又有点像傍晚]
-    [张秀才握着宋先生的手]
-    张秀才：我姓张，是长山人，今天阳寿已尽，家中的家眷就托付给你了。
-    宋先生：我一定会好好照顾他们的。
-    张秀才：我有一首诗送给你，希望你能记住我。“有花有酒春常在，无烛无灯夜自明”
-    [两人含泪拥抱，然后分别]
-
-    [第四幕：回家]
-    [宋先生家中， 客厅里，四周漆黑，隐约听到老妇人的哭泣声]
-    [宋先生醒来发现自己躺在棺材里，拼命敲击棺木， 不一会外面传来老妇人的诧异声， 侍从小妾的喊叫声，以及开馆木的敲击声]
-    宋母：你怎么醒了，我的儿，你怎么突然醒了？？
-    宋先生：我不知道，好像做了一场梦。
-    [宋先生派人去大厅果然有个姓张的秀才，那天死去了]
-    [画面斗转星移，九年过去了，宋母死了，宋先生将母亲安葬之后，自己洗浴料理之后就去世了。]
-    [宋先生的岳父家住在城中的西门里，这天忽然看见宋先生骑着装饰华美的骏马，身后跟随着许多车马仆役，进了内堂，向他拜别离去。全家人都很惊疑，不知道宋先生已经成了神。宋先生的岳父派人跑到宋先生的家乡去打听消息，才知道宋先生已经死了。]
+    Write the plays based on the scripts in the previous scripting step. Each play should have clear boundary and extremely simple motion and setup, 
+    Here a ''play`` is not what is common in operas or in theatre or in movies, a play is just a fragment of the development of the current situation, 
+    which is coherent with both the preceding and the following act to make the whole story both logically and visually consistent.
     """,
     "选角": """
-    挑选并雇佣演员，对剧本中的每个演员撰写一份详细的选角要求表，需要包含对角色年龄、性别、国籍、所处时代、肤色、外形、服装等方面的描述，
-    特别是对人物外观描述一定要详尽，这个角色可以是现实不存在的虚拟角色。
-    **提示** 男性角色一定要帅气，女性角色一定要美丽性感，这样才能吸引观众的眼球。
-    
-    例如：
-    [选角要求表]
-    1. 角色名：宋公
-    性别：男性
-    国籍：中国
-    朝代：清朝中期
-    年龄：50岁上下
-    肤色：白皙
-    外形：清瘦带着书卷气
-    服装：稍微像做官的衣服，蟒袍，头戴七品顶戴花翎，腰间系一条宽腰带，脚穿一双黑色的布鞋
-    
-
-    2. 角色名：张秀才
-    国籍：中国
-    朝代：清朝中期
-    年龄：40岁上下
-    肤色：白皙
-    外形：略胖，身高矮
-    性格：豁达，赤子心
-    服装： 朴素清朝的平民服装，分体式分襟带袖的长袍，腰间系一条宽腰带，头戴一顶黑色的圆帽，脚穿一双黑色的布鞋
-
-    3. 角色名：阎罗王
-    性别：男性
-    国籍：中国
-    朝代：清朝中期
-    年龄：不详
-    肤色：黝黑
-    外形：身材高大，面容严肃
-    服装：帝皇服装，佩戴通天冠，整体搭配包括梁冠、朱袍、朱裳、大带、革带、绶、白袜、乌屐
-
-    4. 角色名：关公
-    性别：男性
-    国籍：中国
-    朝代：三国时期
-    年龄：不详
-    肤色：红润，像喝了酒一样
-    外形：身材高大，面容严肃，留着长须
-    服装：战甲，头戴红色的头盔，手拿青龙偃月刀。
-
+    Select and hire actors. For each character in the script, create a detailed casting requirement sheet, including descriptions of age, gender, nationality, time period, skin color, appearance, clothing, and other relevant details.
+    Particularly, ensure that the character's physical appearance is described in great detail. This character may be a fictional one that does not exist in reality.
+    Tip: Male characters must be handsome, and female characters must be beautiful and sexy to attract the audience's attention.
     """,
     "角色提取" : """
-    提取选角与设备中的选角要求表，生成一个json对象以供后续处理, 例如：
-    
+    Extract the casting requirement sheets from the casting and equipment sections and generate a JSON object for further processing. For example:
     ```
     {
-        "宋公" : "50岁上下，清瘦带着书卷气，白皙，清朝中期，中国，穿着稍微像做官的衣服，蟒袍，头戴七品顶戴花翎，腰间系一条宽腰带，脚穿一双黑色的布鞋",
-        "张秀才" : "40岁上下，略胖，身高矮，白皙，清朝中期，中国，穿着朴素清朝的平民服装，分体式分襟带袖的长袍，腰间系一条宽腰带，头戴一顶黑色的圆帽，脚穿一双黑色的布鞋",
-        "阎罗王" : "不详，高大，面容严肃，黝黑，清朝中期，中国，穿着帝皇服装，佩戴通天冠，整体搭配包括梁冠、朱袍、朱裳、大带、革带、绶、白袜、乌屐",
-        "关公" : "不详，高大，面容严肃，红润，三国时期，中国，穿着战甲，头戴红色的头盔，手拿青龙偃月刀。"
-
+        "Song Gong": "Around 50 years old, thin with a scholarly aura, fair-skinned, mid-Qing Dynasty, China. Dressed in slightly official attire, wearing a mang robe, a seventh-rank hat with a peacock feather, a wide belt around the waist, and black cloth shoes.",
+        "Zhang Xiucai": "Around 40 years old, slightly chubby, short, fair-skinned, mid-Qing Dynasty, China. Wearing simple Qing Dynasty civilian clothing, a split-front long robe with sleeves, a wide belt around the waist, a black round hat, and black cloth shoes.",
+        "King Yanluo": "Unknown age, tall, serious expression, dark complexion, mid-Qing Dynasty, China. Wearing imperial attire, adorned with a Tongtian crown, including a beam crown, red robe, red skirt, large belt, leather belt, ribbon, white socks, and black wooden clogs.",
+        "Guan Gong": "Unknown age, tall, serious expression, reddish complexion, Three Kingdoms period, China. Wearing battle armor, a red helmet, and wielding a Green Dragon Crescent Blade."
     }
     ```
-
     """,
-    "分镜脚本": """
-    通过绘制一系列画面，直观呈现剧本内容，规划场景、镜头角度和视频流程。
-
-    根据这个剧本写一个分镜脚本，要求：
-    1. 每个分镜头长度5s， 所以过长的幕分成多段
-    2. 每个分镜头的描写要足够细节， 能够让观众看到就能联想到画面
-    3. 每个分镜头都加入时间（现代，清朝中期，2035年等）、地点（中国安徽古镇一户人家内，洛杉矶郊外一个农户门外的道路上等）
-
-    格式要求：
-    序号（镜头的编号，用于标识镜头顺序）、景别（描述镜头的拍摄范围，例如远景、中景、特写等）、
-    风格（确定画面的整体风格，如写实、卡通、简约等）、画面内容（描述每个镜头中应展现的具体内容，包括场景、人物和动作）、
-    镜头时长（每个镜头持续的时间，用以把控节奏）、镜头运动（说明镜头的运动方式，例如推拉摇移、跟拍或静止），使用 <#角色名#>标注人物。
-    背景音乐（注意情感的buildup，只有在适当的时候加入，使用\"music:\"指示音乐描述），
-    人物对话（使用\"dialogue:\"标注对话内容，使用<#角色名#>标注说话的人）。例如：
-    [分镜脚本]
-    第一幕：赴考
-
-    时间：清朝中期
-    地点：中国江南某官宦人家，室内，夜晚
-    风格：写实，古典东方美学
-
-    镜头 1
-    	•	序号：1
-    	•	景别：中景
-    	•	风格：写实
-    	•	画面内容：昏暗的烛光摇曳，木制床榻上躺着 <#宋公#>，脸色苍白，目光微闭，喘息微弱。床边站着两个侍女，神色忧虑。<#小妾#>坐在床沿，手握宋公的手，神情哀伤。
-    	•	镜头时长：5s
-    	•	镜头运动：缓慢推镜，突显氛围
-    	•	背景音乐：“music: 低沉的古筝缓缓奏起，透出凄美的情绪。”
-    	•	人物对话：无
-
-    镜头 2
-    	•	序号：2
-    	•	景别：特写
-    	•	风格：写实
-    	•	画面内容：烛火渐暗，画面模糊间，门外传来脚步声，一个身穿深蓝官差服的男子缓缓走进，手持一卷官府文书，腰间悬挂铜铃，铃声轻响。
-    	•	镜头时长：5s
-    	•	镜头运动：轻微摇镜，营造梦境般的感觉
-    	•	人物对话：无
-
-    镜头 3
-    	•	序号：3
-    	•	景别：近景
-    	•	风格：写实
-    	•	画面内容：官差站在床前，肃然拱手，郑重说道：
-    	•	dialogue: <#官差#>: “时间已到，请先生去参加考试。”
-    	•	镜头时长：5s
-    	•	镜头运动：轻微推镜，增强沉浸感
-    	•	背景音乐：“music: 笛声渐起，带有幽远的韵味。”
-
-    第二幕：考试
-
-    时间：不明（梦境？冥界？）
-    地点：未知城郭，恢弘古殿
-    风格：奇幻，略带超现实感
-
-    镜头 4
-    	•	序号：4
-    	•	景别：远景
-    	•	风格：奇幻
-    	•	画面内容：<#宋公#>骑着白马，跟随官差进入一座陌生的城郭。宫殿巍峨，城门上雕刻着神秘的符文，半空中飘着朦胧的云雾，透露出神秘的氛围。
-    	•	镜头时长：5s
-    	•	镜头运动：跟拍镜头，从背后缓慢推进
-    	•	背景音乐：“music: 低沉的大鼓声缓缓响起，隐隐有风声呼啸。”
-
-    镜头 5
-    	•	序号：5
-    	•	景别：中景
-    	•	风格：奇幻
-    	•	画面内容：<#宋公#>踏入殿堂，殿内金碧辉煌，十余位官员坐在高堂之上。画面对准正中央的一位红脸长须武将，赫然是关壮缪。
-    	•	镜头时长：5s
-    	•	镜头运动：缓慢环绕，展现堂内气势
-    	•	背景音乐：“music: 庄严的古典弦乐响起，气势宏大。”
-
-    第三幕：送别
-
-    时间：清朝中期，清晨
-    地点：郊外，竹林深处
-    风格：写意，带有淡淡的离别情感
-
-    镜头 6
-    	•	序号：6
-    	•	景别：远景
-    	•	风格：写意
-    	•	画面内容：晨雾弥漫的竹林深处，两道身影若隐若现。<#宋公#>与<#张秀才#>站在雾气中，神色凝重。
-    	•	镜头时长：5s
-    	•	镜头运动：轻微摇镜，营造梦幻感
-    	•	背景音乐：“music: 笛声低回，如诉如泣。”
-
-    镜头 7
-    	•	序号：7
-    	•	景别：近景
-    	•	风格：写意
-    	•	画面内容：<#张秀才#>轻轻握住<#宋公#>的手，眼中含泪。
-    	•	dialogue: <#张秀才#>: “我有一首诗送给你，希望你能记住我。”
-    	•	镜头时长：5s
-    	•	镜头运动：轻微推镜，突显情感
-    	•	背景音乐：“music: 二胡奏出悠长而悲凉的旋律。”
-
-    第四幕：回家
-
-    时间：九年后，深夜
-    地点：宋公家中，客厅
-    风格：惊悚，带有灵异色彩
-
-    镜头 8
-    	•	序号：8
-    	•	景别：特写
-    	•	风格：惊悚
-    	•	画面内容：棺材内，<#宋公#>双目骤然睁开，映照出微弱的灯光。他惊恐地望着棺材盖，微微喘息。
-    	•	镜头时长：5s
-    	•	镜头运动：定格，随后快速拉近
-    	•	背景音乐：“music: 急促的小提琴弦音，如心跳般加快。”
-
-    镜头 9
-    	•	序号：9
-    	•	景别：中景
-    	•	风格：惊悚
-    	•	画面内容：棺材外，家人正在祭拜，突然听到棺材内“砰砰”声响。所有人愣住，老妇人（<#宋母#>）惊恐地后退一步。
-    	•	dialogue: <#宋母#>: “你怎么醒了，我的儿，你怎么突然醒了？？”
-    	•	镜头时长：5s
-    	•	镜头运动：快速推镜，增强紧张感
-    	•	背景音乐：“music: 钢琴低音轰鸣，制造紧张氛围。”
-
-    结尾
-
-    时间：清朝中期，黄昏
-    地点：城隍庙前
-    风格：史诗感，带有神话色彩
-
-    镜头 10
-    	•	序号：10
-    	•	景别：远景
-    	•	风格：史诗感
-    	•	画面内容：黄昏中，<#宋公#>身着华贵官服，骑着骏马，从城隍庙大门缓缓走出，身后跟随着数十名随从。他的背影逐渐隐入霞光之中，宛若神明降世。
-    	•	镜头时长：5s
-    	•	镜头运动：缓慢推镜，最后定格
-    	•	背景音乐：“music: 鼓声恢弘，交响乐层层推进，营造神圣感。”
-    """,
-    # "脚本扩写": """
-    # 根据故事、剧本规划和分镜脚本中的每个镜头描述，扩写成每段画面内容，使其可以成为视频生成模型的提示词，确保其与[分镜脚本]中的内容相一致。在扩写的时候参考Milanote的“How to storyboard film scenes with Milanote”，
-
-    # 1. 辨识剧本中的关键镜头
-    # 2. 用镜头中的核心要素给每个关键镜头起名，例如（“车道”，“主入口”，“后院露台“等等）
-    # 3. 为每个镜头添加定语要素，或许可以添加一些无关紧要的人员或物品增添镜头细节。
-
-    # 可添加的要素：
-    # - 时间定语：故事发生的时间，例如：宋朝末年、20世纪90年代、公元前若干年
-    # - 地点定语：故事发生的地点，例如：宋汴京一户做官的人家里、洛杉矶一户农户的院子里、非洲尼赫鲁大草原上
-    # - 背景人物：如侍从、小妾、路人、邻居等。
-    # - 场景细节描述：如昏黄的蜡烛灯、宫殿壮丽、竹林中四处飘着白色的雾气等。
-    # - **注意** 对每段视频都要添加足够多的细节，其中时间地点是必要的，要让观众看到文字就能联想到一副栩栩如生的画面。
-
-    # 例如：
-    # 镜头1: 特写 写实 静止 <#宋公#>躺在病床上，面色苍白，微微喘息，背景是昏黄的油灯，光线摇曳。
-    # 扩写镜头1： 时间是宋朝末期，地点是一户做官的人家里，<#宋公#>（50岁上下，清瘦带着书卷气）正躺在病床上，他的病床是那种古代常见的木制床榻，前景时昏黄的蜡烛灯，两个侍女和宋公的小妾围在床边，小妾身穿朴素但是半透明的薄纱对襟衣物，面容俊俏，身型凹凸有致。
-
-    # 特别注意，在扩写的过程中人物的标注<#角色名#>要原封不动的复制。
-    # **特别注意2** 由于每个镜头都是分别由视频生成模型生成的，无法在各段视频之间参考，所以每个镜头的描述都要不通过前后镜头描述就能清晰体现，确保视频生成模型能够准确的生成出来。
-    # """,
     "脚本提取": """
-    提取分镜脚本中每个镜头描述，生成一个json对象以供后续处理,
-    **注意** 
-    * 每段视频的长度固定为5s，音乐轨道的时间可以不固定，贯穿多个镜头
-    * 人物对话要用到"时用\\"代替
-    * 如果是不包含人脸正面的场景使用t2v, 包含人脸正面的场景使用i2v
-    * 注意，如果用户没有提供图片，那么第一段视频不能是i2v
-    例如：
-    
-    ```
-        {
+    Extracting Shot Descriptions from a Storyboard
+
+    Generate a JSON object from the storyboard, where each shot is structured for further processing.
+
+    Note:
+    	•	Each video segment is fixed at 5 seconds in length, but the music track can span multiple shots.
+    	•	Dialogue must use "\\" notation instead of regular quotation marks.
+    	•	If the scene does not contain a frontal human face, use "t2v" (text-to-video).
+    	•	If the scene contains a frontal human face, use "i2v" (image-to-video).
+    	•	If the user does not provide an image, the first scene cannot be "i2v".
+
+    For example, using a well-known English-language setting like Victorian London, the JSON structure could look like this:
+
+    {
         "1": {
-            "scene": "中景",
-            "style": "写实",
-            "content": "清朝中期，中国江南某官宦人家。夜晚，昏暗的烛光摇曳，木制床榻上躺着 <#宋公#>，脸色苍白，目光微闭，喘息微弱。床边站着两个侍女，神色忧虑。<#小妾#>坐在床沿，手握宋公的手，神情哀伤。",
+            "scene": "Medium shot",
+            "style": "Realistic",
+            "content": "Victorian-era London. A dimly lit study filled with bookshelves and antique furniture. Nighttime, a single candle flickers on a wooden desk. <#Mr. Holmes#> sits in a high-backed chair, eyes closed, fingers pressed together in deep thought. Outside, rain patters against the window, casting ghostly reflections.",
             "duration": 5,
-            "motion": "缓慢推镜",
-            "music": "低沉的古筝缓缓奏起，透出凄美的情绪",
-            "dialogue": "无",
-            "type" : "t2v"
+            "motion": "Slow push-in",
+            "music": "A soft violin melody, carrying an air of mystery",
+            "dialogue": "None",
+            "type": "t2v"
         },
         "2": {
-            "scene": "特写",
-            "style": "写实",
-            "content": "清朝中期，中国江南某官宦人家，主人公<#宋公#>躺在床上，床边站着两个侍女和一个小妾，烛火渐暗，画面模糊间，门外传来脚步声，一个身穿深蓝官差服的男子缓缓走进，手持一卷官府文书，腰间悬挂铜铃，铃声轻响。",
+            "scene": "Close-up",
+            "style": "Realistic",
+            "content": "The camera focuses on <#Holmes#> as he suddenly opens his piercing eyes. His gaze sharpens, as if sensing something unseen. A clock in the corner strikes midnight. The sound of a carriage stopping outside echoes through the quiet room.",
             "duration": 5,
-            "motion": "轻微摇镜",
-            "music": "低沉的古筝缓缓奏起，透出凄美的情绪",
-            "dialogue": "无",
-            "type" : "i2v"
+            "motion": "Subtle shake",
+            "music": "The violin intensifies slightly, building suspense",
+            "dialogue": "None",
+            "type": "i2v"
         },
         "3": {
-            "scene": "近景",
-            "style": "写实",
-            "content": "清朝中期，中国江南某官宦人家，主人公<#宋公#>躺在床上，一个人高马大的官差，身着差役模样的官服，正站在床前，肃然拱手，郑重说道：",
+            "scene": "Medium shot",
+            "style": "Realistic",
+            "content": "A knock on the door. <#Dr. Watson#>, dressed in his evening robe, enters hurriedly, concern etched on his face. He steps into the dim light and speaks urgently:",
             "duration": 5,
-            "motion": "轻微推镜",
-            "music": "笛声渐起，带有幽远的韵味",
-            "dialogue": "<#官差#>: “时间已到，请先生去参加考试。”",
-            "type" : "i2v"
+            "motion": "Gentle push-in",
+            "music": "A subtle piano chord, underscoring tension",
+            "dialogue": "<#Watson#>: \"There’s been another murder, Holmes. The police need you immediately.\"",
+            "type": "i2v"
         },
         "4": {
-            "scene": "远景",
-            "style": "奇幻",
-            "content": "不明的梦境世界。<#宋公#>骑着白马，跟随官差进入一座陌生的城郭。宫殿巍峨，城门上雕刻着神秘的符文，半空中飘着朦胧的云雾，透露出神秘的氛围。",
+            "scene": "Wide shot",
+            "style": "Mystical",
+            "content": "Fog swirls through the cobbled streets of Victorian London. A hansom cab speeds through the misty night, carrying <#Holmes#> and <#Watson#> toward the crime scene. Gas lamps flicker, casting eerie shadows on the damp pavement.",
             "duration": 5,
-            "motion": "跟拍镜头，从背后缓慢推进",
-            "music": "低沉的大鼓声缓缓响起，隐隐有风声呼啸",
-            "dialogue": "无",
-            "type" : "t2v"
+            "motion": "Tracking shot from behind",
+            "music": "Deep cellos and distant bells create a sense of urgency",
+            "dialogue": "None",
+            "type": "t2v"
         },
         "5": {
-            "scene": "中景",
-            "style": "奇幻",
-            "content": "<#宋公#>踏入殿堂，殿内金碧辉煌，十余位官员坐在高堂之上。画面对准正中央的一位红脸长须武将，赫然是关壮缪。",
+            "scene": "Medium shot",
+            "style": "Mystical",
+            "content": "<#Holmes#> and <#Watson#> arrive at a grand but decaying mansion. The heavy wooden doors creak open, revealing a dimly lit hallway with faded wallpaper and dust-covered chandeliers. The air is thick with unease.",
             "duration": 5,
-            "motion": "缓慢环绕，展现堂内气势",
-            "music": "庄严的古典弦乐响起，气势宏大",
-            "dialogue": "无",
-            "type" : "t2v"
+            "motion": "Slow panning shot to establish setting",
+            "music": "A deep bass note resonates, followed by soft whispers of a choir",
+            "dialogue": "None",
+            "type": "t2v"
         },
         "6": {
-            "scene": "远景",
-            "style": "写意",
-            "content": "清晨，竹林深处，晨雾弥漫。两道身影若隐若现。<#宋公#>与<#张秀才#>站在雾气中，神色凝重。",
+            "scene": "Wide shot",
+            "style": "Ethereal",
+            "content": "Dawn breaks over London. Big Ben stands tall against the golden sky. The streets are now bustling, oblivious to the darkness that lurks beneath the city's surface. <#Holmes#> stands alone on a bridge, staring into the distance, lost in thought.",
             "duration": 5,
-            "motion": "轻微摇镜",
-            "music": "笛声低回，如诉如泣",
-            "dialogue": "无",
-            "type" : "t2v"
+            "motion": "Slow pan across the skyline",
+            "music": "A soft violin solo, both melancholic and contemplative",
+            "dialogue": "None",
+            "type": "t2v"
         },
         "7": {
-            "scene": "近景",
-            "style": "写意",
-            "content": "<#张秀才#>轻轻握住<#宋公#>的手，眼中含泪。",
+            "scene": "Close-up",
+            "style": "Dramatic",
+            "content": "<#Watson#> places a reassuring hand on <#Holmes#>'s shoulder. His expression is full of concern.",
             "duration": 5,
-            "motion": "轻微推镜",
-            "music": "二胡奏出悠长而悲凉的旋律",
-            "dialogue": "<#张秀才#>: “我有一首诗送给你，希望你能记住我。”",
-            "type" : "i2v"
+            "motion": "Gentle push-in",
+            "music": "The violin melody slows, carrying warmth",
+            "dialogue": "<#Watson#>: \"You can’t solve everything alone, my friend.\"",
+            "type": "i2v"
         },
         "8": {
-            "scene": "特写",
-            "style": "惊悚",
-            "content": "深夜，棺材内，<#宋公#>双目骤然睁开，映照出微弱的灯光。他惊恐地望着棺材盖，微微喘息。",
+            "scene": "Extreme close-up",
+            "style": "Thriller",
+            "content": "A gloved hand slips a blood-stained letter into a wooden drawer. The camera lingers on the crimson seal, marked with an unfamiliar symbol.",
             "duration": 5,
-            "motion": "定格，随后快速拉近",
-            "music": "急促的小提琴弦音，如心跳般加快",
-            "dialogue": "无",
-            "type" : "i2v"
+            "motion": "Still frame, then a sudden zoom-in",
+            "music": "A sharp piano note strikes, signaling danger",
+            "dialogue": "None",
+            "type": "t2v"
         },
         "9": {
-            "scene": "中景",
-            "style": "惊悚",
-            "content": "棺材外，家人正在祭拜，突然听到棺材内“砰砰”声响。所有人愣住，老妇人（<#宋母#>）惊恐地后退一步。",
+            "scene": "Medium shot",
+            "style": "Thriller",
+            "content": "Back in Baker Street, <#Holmes#> studies the letter under the flickering gaslight. He slowly turns to <#Watson#> with a grave expression.",
             "duration": 5,
-            "motion": "快速推镜",
-            "music": "钢琴低音轰鸣，制造紧张氛围",
-            "dialogue": "<#宋母#>: 你怎么醒了，我的儿，你怎么突然醒了？？",
-            "type" : "t2v"
+            "motion": "Steady push-in",
+            "music": "Tension builds with rising strings",
+            "dialogue": "<#Holmes#>: \"This… changes everything.\"",
+            "type": "i2v"
         },
         "10": {
-            "scene": "远景",
-            "style": "史诗感",
-            "content": "黄昏，城隍庙前。<#宋公#>身着华贵官服，骑着骏马，从城隍庙大门缓缓走出，身后跟随着数十名随从。他的背影逐渐隐入霞光之中，宛若神明降世。",
+            "scene": "Wide shot",
+            "style": "Epic",
+            "content": "On the rooftops of London, a shadowy figure watches from above. His silhouette blends with the night as he vanishes into the mist.",
             "duration": 5,
-            "motion": "缓慢推镜，最后定格",
-            "music": "鼓声恢弘，交响乐层层推进，营造神圣感",
-            "dialogue": "无",
-            "type" : "t2v"
-        },
-        ...<后续镜头省略>
+            "motion": "Slow tracking shot, followed by a fade-out",
+            "music": "A haunting choir swells, then fades into silence",
+            "dialogue": "None",
+            "type": "t2v"
+        }
     }
-    ```
+
+    This example follows a Sherlock Holmes-style mystery, maintaining the same structure while adapting the setting, characters, and themes to a widely recognized English-language story.
     """,
 }

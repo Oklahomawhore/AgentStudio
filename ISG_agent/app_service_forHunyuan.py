@@ -9,6 +9,10 @@ import threading
 
 dotenv.load_dotenv()
 
+from dashscope import VideoSynthesis
+from http import HTTPStatus
+
+
 app = Flask(__name__)
 
 
@@ -54,16 +58,26 @@ def generate_video_replicate():
                 # }
             # )
             # kling-v1.6
-            output = replicate.run(
-                "kwaivgi/kling-v1.6-standard",
-                input={
-                    "prompt": data["prompt"],
-                    "duration": 5,
-                    "cfg_scale": 0.5,
-                    "aspect_ratio": "16:9",
-                    "negative_prompt": ""
-                }
-            )
+            # output = replicate.run(
+            #     "kwaivgi/kling-v1.6-standard",
+            #     input={
+            #         "prompt": data["prompt"],
+            #         "duration": 5,
+            #         "cfg_scale": 0.5,
+            #         "aspect_ratio": "16:9",
+            #         "negative_prompt": ""
+            #     }
+            # )
+
+            # Wan2.1
+            rsp = VideoSynthesis.call(model='wanx2.1-t2v-turbo',
+                              prompt=data['prompt'],size='1280*720')
+            if rsp.status_code == HTTPStatus.OK:
+                output = rsp.output.video_url
+                print(output)
+            else:
+                print(rsp.message)
+                output = None
         except Exception as e:
             return jsonify({'error': f"Error in generating video with Replicate API: {str(e)}"}), 500
         # Check if the output contains the video URL
@@ -106,7 +120,7 @@ def generate_image2video_replicate():
         # Extract input data from the request
         data = request.get_json()
 
-        if not data or 'prompt' not in data:
+        if not data or 'prompt' not in data or 'image' not in data:
             return jsonify({'error': 'Invalid input. Expected JSON with "prompt" key.'}), 400
 
         
@@ -126,16 +140,25 @@ def generate_image2video_replicate():
             #     }
             # )
             # kling-v1.6
-            output = replicate.run(
-                "kwaivgi/kling-v1.6-standard",
-                input={
-                    "prompt": data["prompt"],
-                    "duration": 5,
-                    "cfg_scale": 0.5,
-                    "aspect_ratio": "16:9",
-                    "negative_prompt": ""
-                }
-            )
+            # output = replicate.run(
+            #     "kwaivgi/kling-v1.6-standard",
+            #     input={
+            #         "prompt": data["prompt"],
+            #         "duration": 5,
+            #         "cfg_scale": 0.5,
+            #         "aspect_ratio": "16:9",
+            #         "negative_prompt": ""
+            #     }
+            # )
+            # Wan2.1
+            rsp = VideoSynthesis.call(model='wanx2.1-i2v-turbo',
+                              prompt=data['prompt'], img_url=data['image'],size='1280*720')
+            if rsp.status_code == HTTPStatus.OK:
+                output = rsp.output.video_url
+                print(output)
+            else:
+                print(rsp.message)
+                output = None
         except Exception as e:
             return jsonify({'error': f"Error in generating video with Replicate API: {str(e)}"}), 500
         # Check if the output contains the video URL

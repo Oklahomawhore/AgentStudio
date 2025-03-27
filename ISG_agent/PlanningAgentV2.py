@@ -221,7 +221,7 @@ def preprocess_task(task, task_dir, plan_model):
         # })
         # print(f"Structure: {extract_structure(task)['Answer_str']}")
         messages = [
-            {"role": "user", "content": PLANNING_PROMPT},
+            {"role": "system", "content": PLANNING_PROMPT},
             {"role": "user", "content": content},
         ]
         
@@ -406,6 +406,7 @@ def extract_json_from_response(json_text):
     response_text = json_text.strip()
     start_index = response_text.find('{')
     if start_index == -1:
+        print(response_text)
         raise ValueError("No valid JSON found in the response")
 
     # Find the position of the last closing bracket ']'
@@ -778,7 +779,8 @@ def conditional_video_prompt(input_text, story, i2v=False):
     print(f"正在编写视频提示词: {input_text}")
     try: 
         completion = OpenAIClient.chat.completions.create(
-            model='deepseek-r1',
+            # model='qwen2.5-vl-7b-instruct',
+            model="gpt-4o",
             messages=messages,
             # max_completion_tokens=4096,
             # temperature=0.7
@@ -793,7 +795,7 @@ def conditional_video_prompt(input_text, story, i2v=False):
         print("Switch to Claude API")
         # print("Error in Azure API, switch to Claude API
         completion = ClaudeClient.chat.completions.create(
-            model = "o1-preview-2024-09-12",
+            model = "qwen2.5-vl-7b-instruct",
             # max_completion_tokens=8192,
             messages=messages,
             # temperature=0.7,
@@ -844,7 +846,7 @@ def Execute_plan(plan, task, task_dir, characters={}, story=""):
     tts_tasks = []
     for i,step in enumerate(plan):
         Task = step.get("Task", "")
-        
+        Task = "t2v"
         if Task == "t2v":
             # Generate video
             # In this step, we expand our content into video prompt, conditioned on the overall storyline.
@@ -863,9 +865,9 @@ def Execute_plan(plan, task, task_dir, characters={}, story=""):
             for character in extract_character_from_content(step['TTS_prompt']):
                 if character in characters:
                     voice_direction[character] =  characters[character]
-            if len(voice_direction) == 0 and step['TTS_prompt'] != "无" and step['TTS_prompt'] != "":
+            if len(voice_direction) == 0 and step['TTS_prompt'] not in  ["无",'None'] and step['TTS_prompt'] != "":
                 voice_direction["narrator"] = "30-year old female, soft voice, kind and warm"
-            tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] != "无" else ("", {}))
+            tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] not in  ["无", "None"] else ("", {}))
         elif Task == "i2v":
             
             # In this step, we expand our content into video prompt, conditioned on the overall storyline.
@@ -884,9 +886,9 @@ def Execute_plan(plan, task, task_dir, characters={}, story=""):
             for character in extract_character_from_content(step['TTS_prompt']):
                 if character in characters:
                     voice_direction[character] =  characters[character]
-            if len(voice_direction) == 0 and step['TTS_prompt'] != "无" and step['TTS_prompt'] != "":
+            if len(voice_direction) == 0 and step['TTS_prompt'] not in  ["无",'None'] and step['TTS_prompt'] != "":
                 voice_direction["narrator"] = "30-year old female, soft voice, kind and warm"
-            tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] != "无" else ("", {}))
+            tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] not in  ["无", "None"] else ("", {}))
     with open(f"{task_dir}/video_prompt.json", "w", encoding='utf-8') as f:
         json.dump(video_prompts, f, indent=4,ensure_ascii=False)
     final = generate_all(video_tasks, music_tasks, tts_tasks, task_dir)
@@ -912,6 +914,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--input_json", type=str, help="Input json file")
     parser.add_argument("--outdir", type=str, help="Output directory")
+    parser.add_argument("--dry-run", action='store_true', help='Only make plans, skip execute')
     args = parser.parse_args()
     
     input_json = args.input_json
@@ -955,11 +958,15 @@ def main():
                 print("-"*100)
                 if assistant_response is not None:
                     messages.append(assistant_response)
-                messages.append({"role": "user", "content": f"{step_name}: {step_prompt}"})
+                if step == 0:
+                    messages.append({"role": "user", "content": f"{step_name}: {step_prompt} \n\n {messages.pop(-1)['content'][-1]['text']}"})
+                else:
+                    messages.append({"role": "user", "content": f"{step_name}: {step_prompt} \n\n "})
                 
                 try: 
                     completion = OpenAIClient.chat.completions.create(
-                        model='deepseek-r1',
+                        # model='qwen2.5-vl-7b-instruct',
+                        model='claude-3-7-sonnet-20250219',
                         messages=messages,
                         # max_completion_tokens=4096,
                         # temperature=0.7,
@@ -977,7 +984,8 @@ def main():
                     # print("Error in Azure API, switch to Claude API")
 
                     completion = ClaudeClient.chat.completions.create(
-                        model = "o1-preview-2024-09-12",
+                        # model = "qwen2.5-vl-7b-instruct",
+                        model = 'gpt-4o',
                         # max_completion_tokens=8192,
                         messages=messages,
                         # temperature=0.7,
@@ -986,9 +994,11 @@ def main():
                     response_text = completion.choices[0].message.content
                 if assistant_response and step_name == "角色提取":
                     print("正在提取角色中...")
-                    characters = extract_json_from_response(response_text)
-                    characters = json.loads(characters)  
-
+                    try:
+                        characters = extract_json_from_response(response_text)
+                        characters = json.loads(characters)
+                    except Exception as e:
+                        raise ValueError(f"Error extracting characters from completion {completion}")
                     characters = transform_character_descriptions(characters)
                     save_plan_json(characters, f"{task_dir}/characters.json")
                 if assistant_response and step_name == "剧本编写":
@@ -999,6 +1009,8 @@ def main():
 
                 print(f"Agent Response: {response_text}")
                 print("-"*100)
+                if '请求错误' in response_text:
+                    print(completion)
 
             try:
                 extract_plan_from_response(response_text, plan_file, characters=characters)
@@ -1022,9 +1034,10 @@ def main():
             
             save_plan_json(Dict_for_plan, f"{task_dir}/Dict_for_plan.json")
             save_plan_json([MessageToJson(m) for m in messages], f"{task_dir}/messages.json")
-        
-        Execute_plan(plan,task, task_dir, characters=characters, story=story)
-        
+        if  not args.dry_run:
+            Execute_plan(plan,task, task_dir, characters=characters, story=story)
+        else:
+            print("dry run, skipping execute")
         
         # cnt = 0
         # while os.path.exists(error_file):

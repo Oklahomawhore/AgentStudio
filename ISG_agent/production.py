@@ -149,8 +149,10 @@ def extract_conversation(prompt, speaker):
         # Split on the first colon when speaker is not explicitly in the prompt
         try:
             conversation = prompt.split("：", 1)[1]
-        except:
+        except IndexError as e:
             conversation = prompt.split(':', 1)[1]
+        finally:
+            print(prompt)
     else:
         # Regex pattern to match <#speaker#>: or <speaker>:
         pattern = rf"<#?{re.escape(speaker)}#?>(.*?)(<#?.*?#?>|$)"
@@ -274,16 +276,21 @@ def concat_video(video_list, music_path, tts_paths, task_dir):
         
         # Load video clips
         video_clips = [VideoFileClip(video[0]) for video in video_list]
+        total_length = 0.0
+        prefix_sum = []
+        for clip in video_clips:
+            prefix_sum.append(total_length)
+            total_length += clip.duration
 
         # Concatenate video clips
         final_video = concatenate_videoclips(video_clips, method="compose")
 
         # Load audio clips
         music_audio = AudioFileClip(music_path).with_volume_scaled(0.5)
-        music_audio = music_audio.subclipped(0, 5 * len(video_list))
+        music_audio = music_audio.subclipped(0, total_length)
         
         
-        tts_clip = [AudioFileClip(tts_path).with_start(5.0 * index) for index, tts_path in enumerate(tts_paths) if tts_path is not None]
+        tts_clip = [AudioFileClip(tts_path).with_start(prefix_sum[index]) for index, tts_path in enumerate(tts_paths) if tts_path is not None]
 
         # Combine audio tracks (dialogue + music)
         final_audio = CompositeAudioClip([music_audio, *tts_clip])

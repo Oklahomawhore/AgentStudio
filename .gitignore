@@ -197,3 +197,5 @@ ISG_agent/Models/generative-models/
 ISG_agent/Models/x-flux/
 ISG_agent/src/
 ISV_eval/NovelConditionedVGen/Chinese-H-Novels/
+tmp/
+*.mp4
