@@ -1,0 +1,347 @@
+
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>电影评估问卷</title>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            max-width: 800px;
+                            margin: 0 auto;
+                            padding: 20px;
+                        }
+                        .question {
+                            margin-bottom: 20px;
+                            padding: 15px;
+                            border: 1px solid #ddd;
+                            border-radius: 5px;
+                        }
+                        .question-text {
+                            font-weight: bold;
+                            margin-bottom: 10px;
+                        }
+                        textarea {
+                            width: 100%;
+                            min-height: 100px;
+                            padding: 10px;
+                            box-sizing: border-box;
+                        }
+                        input[type="number"] {
+                            width: 60px;
+                        }
+                        .rating-scale {
+                            display: flex;
+                            justify-content: space-between;
+                            margin: 10px 0;
+                        }
+                        .rating-scale span {
+                            font-size: 0.8em;
+                            color: #666;
+                        }
+                        button {
+                            background-color: #4CAF50;
+                            color: white;
+                            padding: 10px 15px;
+                            border: none;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 16px;
+                        }
+                        button:hover {
+                            background-color: #45a049;
+                        }
+                        .header {
+                            margin-bottom: 30px;
+                        }
+                        .title {
+                            font-size: 24px;
+                            font-weight: bold;
+                        }
+                        .description {
+                            margin-top: 10px;
+                            color: #666;
+                        }
+                        .context {
+                            margin-top: 20px;
+                            padding: 15px;
+                            background-color: #f9f9f9;
+                            border-left: 4px solid #4CAF50;
+                        }
+                        .context-title {
+                            font-weight: bold;
+                            margin-bottom: 10px;
+                        }
+                        .progress {
+                            margin-bottom: 20px;
+                            background-color: #f3f3f3;
+                            border-radius: 3px;
+                            height: 20px;
+                        }
+                        .progress-bar {
+                            height: 100%;
+                            background-color: #4CAF50;
+                            border-radius: 3px;
+                            text-align: center;
+                            color: white;
+                            font-size: 12px;
+                            line-height: 20px;
+                        }
+                        .thumbnail {
+                            max-width: 100%;
+                            max-height: 300px;
+                            margin: 10px 0;
+                        }
+                        .video-container {
+                            position: relative;
+                            width: 100%;
+                            margin: 15px 0;
+                        }
+                        video {
+                            width: 100%;
+                            max-height: 450px;
+                        }
+                        .video-controls {
+                            margin-top: 5px;
+                            display: flex;
+                            gap: 10px;
+                            align-items: center;
+                        }
+                        .video-controls button {
+                            padding: 5px 10px;
+                            font-size: 14px;
+                        }
+                        .image-gallery {
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 10px;
+                            margin: 10px 0;
+                        }
+                        .image-gallery img {
+                            max-width: 200px;
+                            max-height: 150px;
+                            object-fit: cover;
+                            border: 1px solid #ddd;
+                            border-radius: 4px;
+                            cursor: pointer;
+                        }
+                        .modal {
+                            display: none;
+                            position: fixed;
+                            z-index: 999;
+                            left: 0;
+                            top: 0;
+                            width: 100%;
+                            height: 100%;
+                            background-color: rgba(0,0,0,0.9);
+                        }
+                        .modal-content {
+                            margin: auto;
+                            display: block;
+                            max-width: 90%;
+                            max-height: 90%;
+                        }
+                        .close {
+                            position: absolute;
+                            top: 15px;
+                            right: 35px;
+                            color: #f1f1f1;
+                            font-size: 40px;
+                            font-weight: bold;
+                            cursor: pointer;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="title">{{ title }}</div>
+                        <div class="description">{{ description }}</div>
+                    </div>
+                    
+                    {% if context %}
+                    <div class="context">
+                        <div class="context-title">评估背景信息：</div>
+                        
+                        {% if context.video %}
+                        <div class="video-container">
+                            <p><strong>视频文件:</strong> {{ context.video }}</p>
+                            <video id="videoPlayer" controls>
+                                <source src="/static/videos/{{ context.video_filename }}" type="video/mp4">
+                                您的浏览器不支持HTML5视频播放器
+                            </video>
+                            <div class="video-controls">
+                                <button onclick="document.getElementById('videoPlayer').playbackRate = 0.5">0.5x</button>
+                                <button onclick="document.getElementById('videoPlayer').playbackRate = 1.0">1.0x</button>
+                                <button onclick="document.getElementById('videoPlayer').playbackRate = 1.5">1.5x</button>
+                                <button onclick="document.getElementById('videoPlayer').playbackRate = 2.0">2.0x</button>
+                                <span id="currentTime">00:00</span> / <span id="duration">00:00</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if context.text %}
+                        <div>
+                            <p><strong>场景描述:</strong> {{ context.text }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if context.image %}
+                        <div>
+                            <p><strong>场景图像:</strong></p>
+                            <div class="image-gallery">
+                                {% if context.image is string %}
+                                    <img src="/static/images/{{ context.image }}" class="thumbnail" alt="场景图像" onclick="openModal('/static/images/{{ context.image }}')">
+                                {% else %}
+                                    {% for img in context.image %}
+                                    <img src="/static/images/{{ img }}" class="thumbnail" alt="场景图像 {{ loop.index }}" onclick="openModal('/static/images/{{ img }}')">
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- 图像查看模态框 -->
+                    <div id="imageModal" class="modal">
+                        <span class="close" onclick="closeModal()">&times;</span>
+                        <img class="modal-content" id="modalImage">
+                    </div>
+                    
+                    <form id="questionnaireForm">
+                        {% for question in questions %}
+                        <div class="question">
+                            <div class="question-text">{{ question.text }}</div>
+                            
+                            {% if question.type == 'rating' %}
+                                <div class="rating-scale">
+                                    <span>{{ question.min_label }} ({{ question.min }})</span>
+                                    <span>{{ question.max_label }} ({{ question.max }})</span>
+                                </div>
+                                <input type="number" name="{{ question.id }}" min="{{ question.min }}" max="{{ question.max }}" required>
+                            {% elif question.type == 'text' %}
+                                <textarea name="{{ question.id }}" placeholder="{{ question.placeholder }}" required></textarea>
+                            {% elif question.type == 'options' %}
+                                {% for option in question.options %}
+                                <div>
+                                    <input type="radio" id="{{ question.id }}_{{ loop.index }}" name="{{ question.id }}" value="{{ option }}" required>
+                                    <label for="{{ question.id }}_{{ loop.index }}">{{ option }}</label>
+                                </div>
+                                {% endfor %}
+                            {% elif question.type == 'yes_no' %}
+                                <div>
+                                    <input type="radio" id="{{ question.id }}_yes" name="{{ question.id }}" value="是" required>
+                                    <label for="{{ question.id }}_yes">是</label>
+                                </div>
+                                <div>
+                                    <input type="radio" id="{{ question.id }}_no" name="{{ question.id }}" value="否" required>
+                                    <label for="{{ question.id }}_no">否</label>
+                                </div>
+                            {% elif question.type == 'scoring_1_10' %}
+                                <div class="rating-scale">
+                                    <span>最低 (1)</span>
+                                    <span>最高 (10)</span>
+                                </div>
+                                <input type="number" name="{{ question.id }}" min="1" max="10" required>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        
+                        <button type="submit">提交回答</button>
+                    </form>
+
+                    <script>
+                        // 视频播放时间更新
+                        if (document.getElementById('videoPlayer')) {
+                            const videoPlayer = document.getElementById('videoPlayer');
+                            const currentTimeDisplay = document.getElementById('currentTime');
+                            const durationDisplay = document.getElementById('duration');
+                            
+                            // 格式化时间为 MM:SS 格式
+                            function formatTime(seconds) {
+                                const minutes = Math.floor(seconds / 60);
+                                const secs = Math.floor(seconds % 60);
+                                return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                            }
+                            
+                            videoPlayer.addEventListener('loadedmetadata', function() {
+                                durationDisplay.textContent = formatTime(videoPlayer.duration);
+                            });
+                            
+                            videoPlayer.addEventListener('timeupdate', function() {
+                                currentTimeDisplay.textContent = formatTime(videoPlayer.currentTime);
+                            });
+                        }
+                        
+                        // 图像模态框功能
+                        function openModal(imageSrc) {
+                            const modal = document.getElementById('imageModal');
+                            const modalImg = document.getElementById('modalImage');
+                            modal.style.display = 'flex';
+                            modalImg.src = imageSrc;
+                        }
+                        
+                        function closeModal() {
+                            document.getElementById('imageModal').style.display = 'none';
+                        }
+                        
+                        // 点击模态框背景关闭
+                        window.onclick = function(event) {
+                            const modal = document.getElementById('imageModal');
+                            if (event.target == modal) {
+                                modal.style.display = 'none';
+                            }
+                        }
+                        
+                        // 问卷提交处理
+                        document.getElementById('questionnaireForm').addEventListener('submit', function(e) {
+                            e.preventDefault();
+                            
+                            // 收集表单数据
+                            const formData = new FormData(this);
+                            const jsonData = {};
+                            
+                            for (const [key, value] of formData.entries()) {
+                                jsonData[key] = value;
+                            }
+                            
+                            // 组织答案格式
+                            // 对于yes_no问题，直接用第一个字段的值
+                            // 对于scoring_1_10问题，直接用第一个字段的值作为分数
+                            const firstKey = Object.keys(jsonData)[0];
+                            const firstValue = jsonData[firstKey];
+                            
+                            // 根据问题类型设置回答格式
+                            jsonData.answer = firstValue;
+                            jsonData.score = firstValue;
+                            
+                            // 发送数据到服务器
+                            fetch('/submit', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(jsonData),
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    alert(data.message);
+                                    if (data.next) {
+                                        // 如果还有下一个问题，刷新页面
+                                        window.location.reload();
+                                    } else {
+                                        // 如果没有更多问题，显示完成消息
+                                        document.body.innerHTML = '<div style="text-align:center; margin-top:100px;"><h2>所有问题已回答完毕</h2><p>感谢您的参与，您可以关闭此窗口。</p></div>';
+                                    }
+                                }
+                            })
+                            .catch(error => {
+                                alert('提交出错: ' + error);
+                            });
+                        });
+                    </script>
+                </body>
+                </html>
+                

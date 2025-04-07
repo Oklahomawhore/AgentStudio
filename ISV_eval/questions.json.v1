@@ -63,7 +63,59 @@
       "detailed_shot_assessment": {
         "yes_no": [
           {
+            "question": "Does this shot directly advance the narrative or character development?",
+            "answer": null
+          },
+          {
+            "question": "Does this shot reflect the tone or theme established in the rest of the film?",
+            "answer": null
+          },
+          {
+            "question": "Is this shot visually striking or significant in terms of cinematography?",
+            "answer": null
+          },
+          {
+            "question": "Does this shot feel necessary or could it have been omitted without affecting the overall film?",
+            "answer": null
+          },
+          {
+            "question": "Does this shot fit the pacing of the movie, either speeding up or slowing down the flow appropriately?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How effective is this shot in contributing to the story or emotional impact of the movie?",
+            "score": null
+          },
+          {
+            "question": "How well does this shot connect to the larger narrative or themes established earlier in the film?",
+            "score": null
+          },
+          {
+            "question": "How does this shot contribute to character development (if applicable)?",
+            "score": null
+          },
+          {
+            "question": "Does this shot have a lasting impact or memorable quality that enhances the overall film?",
+            "score": null
+          },
+          {
+            "question": "How does this shot contrast with or complement surrounding shots (in terms of tone, color, movement)?",
+            "score": null
+          }
+        ],
+        "global_impact": [
+          {
+            "question": "Would you consider this shot beneficial to the overall movie?",
+            "answer": null
+          },
+          {
             "question": "Would the movie lose something important if this shot was removed?",
+            "answer": null
+          },
+          {
+            "question": "Does this shot harm the movie’s overall narrative or pacing?",
             "answer": null
           }
         ]
@@ -110,6 +162,82 @@
       }
     },
     "part_4": {
+      "sound_design": {
+        "yes_no": [
+          {
+            "question": "Is the sound design immersive and supportive of the film’s atmosphere?",
+            "answer": null
+          },
+          {
+            "question": "Does the sound editing blend seamlessly with the visuals?",
+            "answer": null
+          },
+          {
+            "question": "Is the film’s sound mix clear and well-balanced (dialogue, sound effects, and music)?",
+            "answer": null
+          },
+          {
+            "question": "Does the sound design contribute meaningfully to emotional beats or themes?",
+            "answer": null
+          },
+          {
+            "question": "Are the sound effects appropriate and realistic for the world of the movie?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How effective is the overall sound design in supporting the emotional impact of the film?",
+            "score": null
+          },
+          {
+            "question": "How well does the soundtrack/music enhance the narrative and atmosphere?",
+            "score": null
+          },
+          {
+            "question": "How memorable or unique is the sound design or music of the movie?",
+            "score": null
+          }
+        ]
+      }
+    },
+    "part_5": {
+      "acting_performances": {
+        "yes_no": [
+          {
+            "question": "Do the performances feel authentic and emotionally grounded?",
+            "answer": null
+          },
+          {
+            "question": "Do the actors effectively convey the motivations and inner lives of their characters?",
+            "answer": null
+          },
+          {
+            "question": "Are the performances well-balanced, with no overacting or underacting?",
+            "answer": null
+          },
+          {
+            "question": "Do the performances build a strong connection between the audience and the characters?",
+            "answer": null
+          }
+        ],
+        "scoring_1_10": [
+          {
+            "question": "How effective are the lead actor(s) in driving the emotional core of the film?",
+            "score": null
+          },
+          {
+            "question": "How well do the supporting actors contribute to the overall film?",
+            "score": null
+          },
+          {
+            "question": "How believable are the character relationships portrayed through acting?",
+            "score": null
+          }
+        ]
+      }
+    },
+    "part_6": {
       "directorial_choices": {
         "yes_no": [
           {
@@ -145,7 +273,7 @@
         ]
       }
     },
-    "part_5": {
+    "part_7": {
       "technical_execution": {
         "yes_no": [
           {

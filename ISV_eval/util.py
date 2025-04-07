@@ -1,13 +1,34 @@
 import os
 import io
 import cv2
+import matplotlib.pyplot as plt
 import requests
 from PIL import Image
 import base64 
 from typing import Tuple, List
 from threading import Lock
+import glob
+
+
+from tqdm import tqdm
 
 make_dir_lock = Lock()
+
+def format_time_to_hhmmss(seconds):
+    """
+    将秒数转换为 HH:mm:ss 格式
+    
+    Args:
+        seconds: 秒数（可以是浮点数）
+        
+    Returns:
+        HH:mm:ss 格式的时间字符串
+    """
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = int(seconds % 60)
+    
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 def download_video(video_url, file_name=None, save_directory="videos") -> str:
     """
@@ -171,3 +192,251 @@ def add_fix_to_filename(file_path, suffix="fix") -> str:
     print(f"Renamed: {file_path} -> {new_file_path}")
 
     return new_file_path
+
+
+import base64
+import numpy as np
+from PIL import Image
+from io import BytesIO
+from openai import OpenAI
+from qwen_vl_utils import process_vision_info
+
+
+# Set OpenAI's API key and API base to use vLLM's API server.
+openai_api_key = "EMPTY"
+openai_api_base = "http://localhost:8000/v1"
+
+client = OpenAI(
+    api_key=openai_api_key,
+    base_url=openai_api_base,
+)
+
+
+video_messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": [
+        {"type": "text", "text": "请用表格总结一下视频中的商品特点"},
+        {
+            "type": "video",
+            "video": "https://duguang-labelling.oss-cn-shanghai.aliyuncs.com/qiansun/video_ocr/videos/50221078283.mp4",
+            "total_pixels": 20480 * 28 * 28, "min_pixels": 16 * 28 * 2, 
+            'fps': 3.0  # The default value is 2.0, but for demonstration purposes, we set it to 3.0.
+        }]
+    },
+]
+
+
+def prepare_message_for_vllm(content_messages, tmp_dir="tmp"):
+    """
+    The frame extraction logic for videos in `vLLM` differs from that of `qwen_vl_utils`.
+    Here, we utilize `qwen_vl_utils` to extract video frames, with the `media_typ`e of the video explicitly set to `video/jpeg`.
+    By doing so, vLLM will no longer attempt to extract frames from the input base64-encoded images.
+    """
+    vllm_messages, fps_list = [], []
+    for message in content_messages:
+        message_content_list = message["content"]
+        if not isinstance(message_content_list, list):
+            vllm_messages.append(message)
+            continue
+
+        new_content_list = []
+        for part_message in message_content_list:
+            if 'video' in part_message:
+                video_message = [{'content': [part_message]}]
+                if not os.path.exists(os.path.join(tmp_dir, os.path.basename(part_message["video"]).split('.')[0])):
+                    os.makedirs(os.path.join(tmp_dir, os.path.basename(part_message["video"]).split('.')[0]))
+                else:
+                    # load processed screenshots
+                    file_list = glob.glob(os.path.join(tmp_dir, os.path.basename(part_message["video"]).split('.')[0], "screenshot*"))
+                    if len(file_list) > 0:
+                        base64_frames = file_list
+                        part_message = {
+                            "type": "video",
+                            "video": base64_frames,
+                        }
+                        new_content_list.append(part_message)  
+                        continue
+                image_inputs, video_inputs, video_kwargs = process_vision_info(video_message, return_video_kwargs=True)
+                assert video_inputs is not None, "video_inputs should not be None"
+                video_input = (video_inputs.pop()).permute(0, 2, 3, 1).numpy().astype(np.uint8)
+                fps_list.extend(video_kwargs.get('fps', []))
+
+                
+                # encode image with base64
+                base64_frames = []
+                for i, frame in enumerate(video_input):
+                    img = Image.fromarray(frame)
+                    file_path = os.path.join(tmp_dir, os.path.basename(part_message["video"]).split('.')[0], f"screenshot_{i}.jpg")
+                    img.save(file_path, format="jpeg")
+                    base64_frames.append(file_path)
+
+                part_message = {
+                    "type": "video",
+                    "video": base64_frames,
+                }
+            new_content_list.append(part_message)
+        message["content"] = new_content_list
+        vllm_messages.append(message)
+    return vllm_messages, {'fps': fps_list}
+
+
+def extract_scene(input_video, output_path, start_time, end_time):
+    """
+    Extract a scene from the video and save it to a file.
+
+    Args:
+        input_video (str): Path to the input video
+        output_path (str): Path to save the output clip
+        start_time (float): Start time in seconds
+        end_time (float): End time in seconds
+    """
+    duration = end_time - start_time
+    os.system(f'ffmpeg -i "{input_video}" -ss {start_time} -t {duration} -c:v libx264 -c:a aac -strict experimental -b:a 128k "{output_path}" -y -loglevel error')
+    return output_path
+
+
+def cut_video_into_scenes(video_path, threshold=10.0, min_scene_length=1, output_dir=None, plot_results=False):
+    """
+    Cut video into scenes based on pixel distance spikes between consecutive frames.
+
+    Args:
+        video_path (str): Path to the input video file
+        threshold (float): Threshold for scene change detection (higher = fewer scenes)
+        min_scene_length (int): Minimum number of frames for a scene
+        output_dir (str, optional): Directory to save scene clips. If None, clips are not saved.
+        plot_results (bool): Whether to generate and display a plot of frame differences
+
+    Returns:
+        list: A list of dictionaries containing scene information:
+              - 'start_frame': starting frame number
+              - 'end_frame': ending frame number
+              - 'start_time': starting time in seconds
+              - 'end_time': ending time in seconds
+              - 'path': path to the saved clip (if output_dir is provided)
+    """
+    # Open the video file
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"Could not open video file: {video_path}")
+
+    # Get video properties
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Initialize variables for scene detection
+    prev_frame = None
+    frame_diffs = []
+    avg_diffs = []
+    thresholds = []
+    frame_numbers = []
+    scene_boundaries = [0]  # Start with the first frame
+
+    # Process video frames to detect scene changes
+    print(f"Analyzing video for scene changes: {video_path}")
+    for i in tqdm(range(frame_count)):
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Convert to grayscale and resize for faster processing
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.resize(gray, (width//4, height//4))
+
+        if prev_frame is not None:
+            # Calculate mean absolute difference between frames
+            diff = cv2.absdiff(gray, prev_frame)
+            mean_diff = np.mean(diff)
+            frame_diffs.append(mean_diff)
+            frame_numbers.append(i+1)
+
+            # Check for scene change
+            if len(frame_diffs) > 1:
+                # Use a moving average to smooth out noise
+                avg_diff = sum(frame_diffs[-3:]) / min(len(frame_diffs), 3)
+                avg_diffs.append(avg_diff)
+                thresholds.append(threshold * avg_diff)
+
+                # If the difference is above threshold and enough frames have passed since last scene
+                if mean_diff > threshold and i - scene_boundaries[-1] >= min_scene_length:
+                    scene_boundaries.append(i)
+                    print(f"Scene change detected at frame {i} (time: {i/fps:.2f}s)")
+
+        prev_frame = gray
+
+    # Add the last frame as a scene boundary
+    if scene_boundaries[-1] != frame_count - 1:
+        scene_boundaries.append(frame_count - 1)
+
+    # Plot results if requested
+    if plot_results:
+        plt.figure(figsize=(15, 8))
+
+        # Plot frame differences
+        plt.plot(frame_numbers, frame_diffs, 'b-', alpha=0.6, linewidth=1, label='帧间差异')
+
+        # Plot moving average if we have enough frames
+        if len(avg_diffs) > 0:
+            # We need to align the x-axis for avg_diffs (starts at frame 3)
+            avg_diff_frames = frame_numbers[1:len(avg_diffs)+2]
+            plt.plot(avg_diff_frames, avg_diffs, 'g-', linewidth=2, label='滑动平均 (3帧)')
+            plt.plot(avg_diff_frames, thresholds, 'r--', linewidth=2, label=f'阈值 (x{threshold})')
+
+        # Mark scene boundaries
+        for boundary in scene_boundaries:
+            if boundary > 0 and boundary < frame_count - 1:  # Skip first and last
+                plt.axvline(x=boundary, color='red', linestyle='-', alpha=0.5)
+                plt.text(boundary, plt.ylim()[1]*0.9, f"{boundary}\n({boundary/fps:.1f}s)",
+                         horizontalalignment='center', color='red', fontsize=8)
+
+        # Add labels and title
+        plt.xlabel('帧编号')
+        plt.ylabel('平均像素差异')
+        plt.title(f'场景检测分析 - {os.path.basename(video_path)}\n检测到 {len(scene_boundaries)-1} 个场景')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+
+
+        # Save plot if output directory exists
+        if output_dir:
+            plot_path = os.path.join(output_dir, os.path.basename(video_path).split('.')[0] + "_scene_analysis.png")
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            print(f"分析图表已保存至: {plot_path}")
+
+        plt.tight_layout()
+        plt.savefig('scene_analysis.png')
+
+    # Create scenes list
+    scenes = []
+    video_name = os.path.basename(video_path).split('.')[0]
+
+    for i in range(len(scene_boundaries) - 1):
+        start_frame = scene_boundaries[i]
+        end_frame = scene_boundaries[i+1]
+
+        scene_info = {
+            'start_frame': start_frame,
+            'end_frame': end_frame,
+            'start_time': start_frame / fps,
+            'end_time': end_frame / fps,
+        }
+
+        # Save scene clip if output directory is provided
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            scene_path = os.path.join(output_dir, f"{video_name}_scene_{i+1:03d}.mp4")
+
+            # Extract and save the scene
+            extract_scene(video_path, scene_path, scene_info['start_time'], scene_info['end_time'])
+            scene_info['path'] = scene_path
+        else:
+            scene_info['path'] = None
+        scene_info['duration'] = scene_info['end_time'] - scene_info['start_time']
+        scene_info['scene_number'] = i + 1
+
+        scenes.append(scene_info)
+
+    cap.release()
+    print(f"检测到 {len(scenes)} 个场景")
+    return scenes

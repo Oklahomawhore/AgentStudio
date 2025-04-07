@@ -122,7 +122,7 @@ def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
 
 
 def kling_imggen_agent(prompt):
-    url = f"{KLING_URL}/generate_image"  # Backend Flask API endpoint for imggen
+    url = f"{Hunyuan_URL}/generate_image"  # Backend Flask API endpoint for imggen
     data = {
         "prompt": prompt,
     }

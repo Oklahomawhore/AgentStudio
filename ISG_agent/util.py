@@ -9,6 +9,16 @@ from threading import Lock
 
 make_dir_lock = Lock()
 
+# Function to download the generated image and encode it to base64
+def IMGGEN_download_image_and_convert_to_base64(image_url):
+    try:
+        image_data = requests.get(image_url).content
+        image_base64 = base64.b64encode(image_data).decode('utf-8')  # Encoding the image in base64
+        return image_base64
+    except Exception as e:
+        print(f"Error in downloading and encoding image: {e}")
+        return None
+
 def download_video(video_url, file_name=None, save_directory="videos") -> str:
     """
     Downloads a video from the given URL and saves it as an MP4 file.

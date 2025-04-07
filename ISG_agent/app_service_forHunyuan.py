@@ -6,11 +6,14 @@ import dotenv
 import uuid
 import time
 import threading
+import os
 
 dotenv.load_dotenv()
 
-from dashscope import VideoSynthesis
+from dashscope import VideoSynthesis, ImageSynthesis
 from http import HTTPStatus
+
+from util import IMGGEN_download_image_and_convert_to_base64
 
 
 app = Flask(__name__)
@@ -183,7 +186,59 @@ def generate_image2video_replicate():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/generate_image', methods=['POST'])
+def image_generation():
+    global last_execution_time
+
+    with execution_lock:
+        current_time = time.time()
+        time_since_last_call = current_time - last_execution_time
+        
+        if time_since_last_call < 2:
+            time.sleep(2 - time_since_last_call)  # Wait for the remaining time
+
+        last_execution_time = time.time()  # Update execution time after waiting
     
+    try:
+        # Extract input data from the request
+        data = request.get_json()
+
+        if not data or 'prompt' not in data:
+            print(data)
+            return jsonify({'error': 'Invalid input. Expected JSON with "prompt" key.'}), 400
+
+        # Step 1: Call Replicate API to generate video
+        try:
+            # Wan2.1
+            rsp = ImageSynthesis.call(api_key=os.getenv("DASHSCOPE_API_KEY"), model='wanx2.1-t2i-turbo',
+                              prompt=data['prompt'], n=1,
+                          size='1024*1024')
+            if rsp.status_code == HTTPStatus.OK:
+                output = rsp.output.results[0]
+                print(output)
+            else:
+                print(rsp.message)
+                output = None
+        except Exception as e:
+            return jsonify({'error': f"Error in generating image with aliyun API: {str(e)}"}), 500
+        # Check if the output contains the video URL
+        if not output or not "url" in output:
+            return jsonify({'error': 'Aliyun API did not return a valid image URL.'}), 500
+        if output:
+            # Step 3: Download image and convert to base64
+            base64_image = IMGGEN_download_image_and_convert_to_base64(output["url"])
+
+            if base64_image:
+                return jsonify({'generated_image_base64': base64_image}), 200
+            else:
+                return jsonify({'error': 'Failed to download or encode the image.'}), 500
+        else:
+            return jsonify({'error': 'Task did not succeed or image not available.'}), 500
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()

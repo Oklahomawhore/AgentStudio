@@ -17,6 +17,11 @@ import json
 from pydub import AudioSegment  # For concatenating WAV files
 import re
 import base64
+from typing import List,Tuple, Dict
+
+import torchaudio
+from audiocraft.models import MusicGen
+from audiocraft.data.audio import audio_write
 
 dotenv.load_dotenv()
 
@@ -66,7 +71,7 @@ def gen_video(prompt, image, i2v=False):
         prompt_hash = generate_hash(prompt + image)  # Combine image path for uniqueness
         file_path = f"videos/{prompt_hash}.pkl"
         
-        # Check if the video already exists
+        # Check if the video already 
         existing_video = load_from_disk(file_path)
 
         if existing_video is not None:
@@ -88,49 +93,129 @@ def gen_video(prompt, image, i2v=False):
     return video_list, screenshot_list
 
 # Music Generation using hash as input (returns file path)
-def gen_music(prompt, duration):
-    print(f"Generating music for prompt: {prompt} for duration {duration} seconds")
-    try:
-        # Generate hash from the prompt
-        prompt_hash = generate_hash(prompt)
-        file_path = f"music/{prompt_hash}.wav"
-        
-        # Check if the music already exists
-        # time.sleep(10)
-        # return "/data/wangshu/wangshu_code/ISG/ISG_agent/music/replicate-prediction-5r4erq6jx5rgm0cgg14v40n4x4.wav"
-        if os.path.exists(file_path):
-            print(f"<GEN_MUSIC> prompt: {prompt} already exists")
-            return file_path
-        
-        # music generation code
-        input = {
-            "prompt": prompt,
-            "duration": duration
-        }
-
-        output = replicate.run(
-            "ardianfe/music-gen-fn-200e:96af46316252ddea4c6614e31861876183b59dce84bad765f38424e87919dd85",
-            input=input
-        )
-        # Send a GET request to the URL to fetch the audio file
-        response = requests.get(output)
-
-        # Check if the request was successful (status code 200)
-        if response.status_code == 200:
-            # Write the content of the response to a .wav file
-            with open(f"music/{prompt_hash}.wav", "wb") as file:
-                file.write(response.content)
+def gen_music(prompts: List[str], durations: List[float]):
+    """
+    Generate music based on unique prompts, combining durations for identical prompts
+    
+    Args:
+        prompts: List of music prompt strings
+        durations: List of durations in seconds for each video clip
+    
+    Returns:
+        str: Path to the generated music file
+    """
+    print(f"Processing {len(prompts)} music prompts with {len(durations)} duration values")
+    
+    if not prompts or not durations:
+        print("No valid music prompts or durations provided")
+        return None
+    
+    # 创建字典来存储每个唯一提示词及其对应的总持续时间
+    prompt_to_duration = {}
+    
+    # 合并相同提示词的持续时间
+    for prompt, duration in zip(prompts, durations):
+        if prompt is None:
+            continue
+            
+        if prompt in prompt_to_duration:
+            prompt_to_duration[prompt] += duration
         else:
-            print(f"Failed to download the file: {response.status_code}")
-        #=> output.wav written to disk
+            prompt_to_duration[prompt] = duration
+    
+    print(f"Found {len(prompt_to_duration)} unique music prompts after combining")
+    
+    # 现在我们有了每个唯一提示词及其总持续时间
+    combined_prompts = []
+    combined_durations = []
+    
+    for prompt, total_duration in prompt_to_duration.items():
+        combined_prompts.append(prompt)
+        combined_durations.append(total_duration)
+        print(f"Combined prompt: '{prompt}' with total duration: {total_duration:.2f}s")
+    
+    # 如果只有一个唯一的提示词，直接生成并返回
+    if len(combined_prompts) == 1:
+        return generate_single_music(combined_prompts[0], combined_durations[0])
+    
+    # 如果有多个唯一提示词，为每个提示词生成音乐并合并
+    return generate_and_combine_music(combined_prompts, combined_durations)
 
-        return f"music/{prompt_hash}.wav"
+def generate_single_music(prompt: str, duration: float) -> str:
+    """生成单个音乐片段"""
+    print(f"Generating music for prompt: '{prompt}' for duration {duration:.2f} seconds")
+    try:
+        # Generate hash from the prompt and duration
+        prompt_hash = generate_hash(f"{prompt}_{duration:.1f}")
+        file_path = f"music/{prompt_hash}.wav"
+
+        # Check if the music already exists
+        if os.path.exists(file_path):
+            print(f"<GEN_MUSIC> prompt: '{prompt}' already exists")
+            return file_path
+
+        # Music generation code
+        model = MusicGen.get_pretrained('facebook/musicgen-melody')
+        model.set_generation_params(duration=duration)
+        wav = model.generate([prompt]) 
+
+        for idx, one_wav in enumerate(wav):
+            # Will save under {idx}.wav, with loudness normalization at -14 db LUFS.
+            file_path = audio_write(f'music/{prompt_hash}', one_wav.cpu(), model.sample_rate, strategy="loudness", loudness_compressor=True)
+        return file_path
     except Exception as e:
         print(f"Error in generating music: {str(e)}")
         return None
-import re
 
-import re
+def generate_and_combine_music(prompts: List[str], durations: List[float]) -> str:
+    """为多个提示词生成音乐并合并"""
+    music_files = []
+    
+    # 为每个提示词生成音乐
+    for prompt, duration in zip(prompts, durations):
+        music_file = generate_single_music(prompt, duration)
+        if music_file:
+            music_files.append(music_file)
+    
+    if not music_files:
+        print("Failed to generate any music files")
+        return None
+    
+    if len(music_files) == 1:
+        return music_files[0]
+    
+    # 合并所有生成的音乐文件
+    combined_hash = generate_hash("_".join([f"{p}_{d:.1f}" for p, d in zip(prompts, durations)]))
+    combined_file = f"music/combined_{combined_hash}.wav"
+    
+    # 检查合并文件是否已存在
+    if os.path.exists(combined_file):
+        print(f"Combined music file already exists: {combined_file}")
+        return combined_file
+    
+    try:
+        # 创建目录（如果不存在）
+        os.makedirs(os.path.dirname(combined_file), exist_ok=True)
+        
+        # 合并音频文件
+        combined_audio = None
+        for file in music_files:
+            segment = AudioSegment.from_wav(file)
+            if combined_audio is None:
+                combined_audio = segment
+            else:
+                combined_audio += segment
+        
+        # 导出合并后的文件
+        combined_audio.export(combined_file, format="wav")
+        print(f"Successfully combined music files into: {combined_file}")
+        return combined_file
+    
+    except Exception as e:
+        print(f"Error combining music files: {str(e)}")
+        # 如果合并失败，返回第一个成功生成的音乐文件
+        return music_files[0]
+
 
 def extract_conversation(prompt, speaker):
     """
@@ -259,7 +344,7 @@ def gen_tts(prompt, voice_direction, speaker_embeddings_cache_dir="speaker_embed
 
         return combined_file
 
-def concat_video(video_list, music_path, tts_paths, task_dir):
+def concat_video(video_clips: List[VideoFileClip], music_path, tts_paths, task_dir):
     """
     Concatenate multiple MP4 videos and add dialogue (TTS) and background music to the audio track.
     
@@ -275,7 +360,6 @@ def concat_video(video_list, music_path, tts_paths, task_dir):
     try:
         
         # Load video clips
-        video_clips = [VideoFileClip(video[0]) for video in video_list]
         total_length = 0.0
         prefix_sum = []
         for clip in video_clips:
@@ -287,7 +371,7 @@ def concat_video(video_list, music_path, tts_paths, task_dir):
 
         # Load audio clips
         music_audio = AudioFileClip(music_path).with_volume_scaled(0.5)
-        music_audio = music_audio.subclipped(0, total_length)
+        music_audio = music_audio.subclipped(0, min(total_length, music_audio.duration))
         
         
         tts_clip = [AudioFileClip(tts_path).with_start(prefix_sum[index]) for index, tts_path in enumerate(tts_paths) if tts_path is not None]
@@ -345,9 +429,12 @@ def generate_all(video_task, music_task, tts_task, task_dir):
                     raise Exception("Need last frame for an i2v task.")
         # Generate TTS and music in parallel
         tts_results = executor.map(gen_tts, *zip(*tts_task))
-        music_result = executor.submit(gen_music, " ".join([task if task is not None else "" for task in music_task]), len(video_task) * 5)
-
-        final = concat_video(vid_results, music_result.result(), list(tts_results), task_dir)
+        video_clips = [VideoFileClip(video[0]) for video in vid_results]
+        video_lengths = []
+        for clip in video_clips:
+            video_lengths.append(clip.duration)
+        music_result = executor.submit(gen_music, music_task, video_lengths)
+        final = concat_video(video_clips, music_result.result(), list(tts_results), task_dir)
         end = time.time()
         print(f"Time taken: {end-start:.6f}")
 

@@ -1,12 +1,14 @@
+import os
 from typing import List, Dict, Any, Optional, Union
 import asyncio
 import json
 from agents import BaseAgent,CriticAgent,CulturalExpertAgent, AudienceAgent
+from collections import defaultdict
 
 class MovieReviewCommission:
     """电影评审委员会系统"""
     
-    def __init__(self, agents: List[BaseAgent]):
+    def __init__(self, agents: List[BaseAgent], save_path: Optional[str] = None, video_path: Optional[str] = None, scenes: Optional[List[str]] = None):
         """
         初始化电影评审委员会
         
@@ -17,7 +19,111 @@ class MovieReviewCommission:
         self.discussions = []
         self.votes = {}
         self.final_decision = {}
+        self.save_path = save_path
+        if not os.path.exists(self.save_path):
+            os.makedirs(self.save_path)
+        self._load_questions_asked()
+        self.video = video_path
+        self.scenes = scenes
+        self.questions_to_ask = defaultdict(list)
+        self.questions_to_ask_contents = {}
+
+    def _load_questions_asked(self):
+        """
+        从文件中加载已问问题
+        """
+        if os.path.exists(os.path.join(self.save_path, "questions_asked.json")):
+            with open(os.path.join(self.save_path, "questions_asked.json"), 'r', encoding='utf-8') as f:
+                data = json.load(f)  # Loads as a normal dict
+                self.questions_asked = defaultdict(list, data)  # Convert back to defaultdict
+        else:
+            self.questions_asked = defaultdict(list)
+
+    def _save_questions_asked(self):
+        """
+        将已问问题保存到文件
+        """
+        with open(os.path.join(self.save_path, 'questions_asked.json'), 'w', encoding='utf-8') as f:
+            json.dump(self.questions_asked, f, ensure_ascii=False, indent=4)
+    def __str__(self):
+        return f"MovieReviewCommission_{'_'.join(map(str,self.agents))}"
+
+    async def do_questionare(self, question: str, context: Dict[str,List[str] | str], batch=False) -> Dict[str, Any]:
+        """
+        对问题进行问卷调查
+        
+        参数:
+            question: 要询问的问题
+            context: 问题的上下文信息，可能包含文本、图像或视频
+                
+        返回:
+            问卷调查结果，键为智能体名称，值为回答
+        """
+        questionnaire_results = {}
+        content = []
+        if 'text' in context:
+            content.append({"type" : "text", "text" : f"Given the context: {context['text']} anwer: {question}"})
+        else:
+            content.append({"type" : "text", "text" : question})
+        if 'image' in context:
+            if isinstance(context['image'], list):
+                for image in context['image']:
+                    content.append({"type" : "image", "image" : image})
+            else:
+                content.append({"type" : "image", "image" : context['image']})
+        if 'video' in context:
+            content.append({"type" : "video", "video" : context['video']})
+        for agent in self.agents:
+            # ask if not answered
+            if (question not in self.questions_asked) or (agent.characteristics.name not in [list(k.keys())[0] for k in self.questions_asked[question]]):
+                # print(f"Question not in asked list, asking {question} to {agent.characteristics.name}")
+                if batch:
+                    self.questions_to_ask[question].append({agent.characteristics.name : ""})
+                    if not question in self.questions_to_ask_contents:
+                        self.questions_to_ask_contents[question] = content
+                else:
+                    response = await agent._respond_to_user(content)
+                    questionnaire_results[agent.characteristics.name] = response
+                    # print(f"Q: {question} \n {agent.characteristics.name}: {response}")
+                    self.questions_asked[question].append({agent.characteristics.name: response})
+                    self._save_questions_asked()
+            else:
+                # get the answer
+                # print(f"Question already asked: {question} to {agent.characteristics.name}")
+                for k in self.questions_asked[question]:
+                    if agent.characteristics.name in k:
+                        questionnaire_results[agent.characteristics.name] = k[agent.characteristics.name]
+                        # print(f"Q: {question} \n {agent.characteristics.name}: {k[agent.characteristics.name]}")
+        return questionnaire_results
     
+    async def do_batch_questionare(self) -> Dict[str, Any]:
+        questionnaire_results = {}
+        # get questions for single agent
+        for agent in self.agents:
+            b_question = []
+            for q in self.questions_to_ask:
+                if agent.characteristics.name in [list(k.keys())[0] for k in self.questions_to_ask[q]]:
+                    b_question.append((q,self.questions_to_ask_contents[q]))
+            if len(b_question) > 0:
+                answers = await agent._respond_to_user_batch([item[1] for item in b_question])
+                for i, q in enumerate(b_question):
+                    if answers[i] is not None:
+                        self.questions_asked[q[0]].append({agent.characteristics.name: answers[i]})
+                        self._save_questions_asked()
+                questionnaire_results[agent.characteristics.name] = answers
+        return questionnaire_results
+    def get_questionnaire_results(self) -> Dict[str, Any]:
+        """
+        获取问卷调查结果
+        
+        参数:
+            question: 问题
+            
+        返回:
+            问卷调查结果
+        """
+        return self.questions_asked
+
     async def evaluate_film(self, film_title: str, film_info: Dict[str, Any]) -> Dict[str, Any]:
         """
         对电影进行全面评估

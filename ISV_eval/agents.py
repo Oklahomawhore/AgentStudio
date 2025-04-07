@@ -1,8 +1,23 @@
 import os
+import asyncio
+import concurrent.futures
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from openai import OpenAI
+import dashscope
+from http import HTTPStatus
+import threading
+import json
+from pathlib import Path
+import time
+
+from qwen_vl_utils import process_vision_info
+from util import prepare_message_for_vllm
+from dashscope.utils.oss_utils import preprocess_message_element
+
+# 添加一个线程本地存储，用于存储每个线程的客户端实例
+thread_local = threading.local()
 
 @dataclass
 class Memory:
@@ -10,7 +25,7 @@ class Memory:
     conversations: List[Dict[str, Any]] = field(default_factory=list)
     knowledge: Dict[str, Any] = field(default_factory=dict)
     
-    def add_conversation(self, role: str, content: str, timestamp: Optional[datetime] = None):
+    def add_conversation(self, role: str, content: List[Dict], timestamp: Optional[datetime] = None):
         """添加一条对话记录到记忆中"""
         if timestamp is None:
             timestamp = datetime.now()
@@ -60,7 +75,8 @@ class BaseAgent:
         api_key: Optional[str] = None,
         model: str = "gpt-4o", 
         characteristics: Optional[Characteristics] = None,
-        memory: Optional[Memory] = None
+        memory: Optional[Memory] = None,
+        max_workers: int = 1  # 添加最大工作线程数参数
     ):
         """
         初始化基础智能体
@@ -70,6 +86,7 @@ class BaseAgent:
             model: 使用的OpenAI模型名称
             characteristics: 智能体特征，如果为None则使用默认特征
             memory: 智能体记忆，如果为None则创建新的记忆
+            max_workers: 线程池最大工作线程数
         """
         # 初始化OpenAI客户端
         self.api_key = api_key or os.environ.get("KLING_API_KEY")
@@ -77,27 +94,72 @@ class BaseAgent:
         if not self.api_key:
             raise ValueError("OpenAI API密钥未提供，请通过参数传入或设置OPENAI_API_KEY环境变量")
         
+        # 主线程客户端，用于非并发情况
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.model = model
+
+        self.batch_client = OpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"), base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
         
         # 初始化特征和记忆
         self.characteristics = characteristics or Characteristics()
         self.memory = memory or Memory()
         
+        # 添加线程池
+        self.max_workers = max_workers
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        
+        # 内存锁，保护共享资源
+        self.memory_lock = threading.RLock()
+    def __str__(self):
+        return self.characteristics.name
+    
+    def _get_thread_client(self):
+        """获取线程本地的OpenAI客户端"""
+        if not hasattr(thread_local, 'client'):
+            thread_local.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        return thread_local.client
+        
     def _generate_system_prompt(self) -> str:
         """生成系统提示词"""
         return self.characteristics.get_prompt_description()
     
+    @classmethod
+    def _preprocess_messages(cls, model: str, messages: List[dict],
+                             api_key: str):
+        """
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"image": ""},
+                        {"text": ""},
+                    ]
+                }
+            ]
+        """
+        has_upload = False
+        for message in messages:
+            content = message['content']
+            for elem in content:
+                if not isinstance(elem,
+                                  (int, float, bool, str, bytes, bytearray)):
+                    is_upload = preprocess_message_element(
+                        model, elem, api_key)
+                    if is_upload and not has_upload:
+                        has_upload = True
+        return has_upload
+
     def _prepare_messages(self, recent_message_count: int = 10) -> List[Dict[str, str]]:
         """准备发送给API的消息列表"""
-        messages = [{"role": "system", "content": self._generate_system_prompt()}]
-        
-        # 添加最近的对话历史
-        recent_conversations = self.memory.get_recent_conversations(recent_message_count)
-        for conv in recent_conversations:
-            messages.append({"role": conv["role"], "content": conv["content"]})
+        with self.memory_lock:
+            messages = [{"role": "system", "content": self._generate_system_prompt()}]
             
-        return messages
+            # 添加最近的对话历史
+            recent_conversations = self.memory.get_recent_conversations(recent_message_count)
+            for conv in recent_conversations:
+                messages.append({"role": conv["role"], "content": conv["content"]})
+                
+            return messages
         
     async def talk(self, message: str, other_agent: Optional['BaseAgent'] = None) -> str:
         """
@@ -117,37 +179,263 @@ class BaseAgent:
             # 否则，回应用户的消息
             return await self._respond_to_user(message)
     
-    async def _respond_to_user(self, message: str) -> str:
-        """回应用户的消息"""
+    async def _respond_to_user(self, message: List[Dict] | List[List[Dict]], include_history: bool = False, batch=False) -> str:
+        """
+        回应用户的消息 (异步版本)
+        
+        参数:
+            message: 用户消息内容
+            include_history: 是否包含历史对话，默认为False
+            
+        返回:
+            智能体的回复
+        """
+        if batch:
+            return await self._respond_to_user_batch(message, include_history)
         # 记录用户消息
-        self.memory.add_conversation("user", message)
+        with self.memory_lock:
+            self.memory.add_conversation("user", message)
         
         # 准备发送给API的消息
-        messages = self._prepare_messages()
+        if include_history:
+            messages = self._prepare_messages()
+        else:
+            # 不包含历史对话，只使用系统提示和当前消息
+            messages = [{"role": "system", "content": self._generate_system_prompt()},
+                       {"role": "user", "content": message}]
         
-        # 调用API获取回复
-        response = self.client.chat.completions.create(
+        vllm_messages, fps = prepare_message_for_vllm(messages)
+        
+        # 使用线程池处理API调用
+        loop = asyncio.get_running_loop()
+        
+        if 'qwen' in self.model.lower():
+            # 使用线程池执行DashScope调用
+            reply = await loop.run_in_executor(
+                self.executor,
+                self._call_dashscope,
+                messages
+            )
+        else:
+            # 使用线程池执行OpenAI调用
+            reply = await loop.run_in_executor(
+                self.executor,
+                self._call_openai,
+                vllm_messages
+            )
+        
+        # 记录智能体回复
+        with self.memory_lock:
+            self.memory.add_conversation("assistant", reply)
+        
+        # 返回回复文本
+        return reply.choices[0].message.content[0]["text"]
+    
+    
+    def upload_file(self, file_path):
+        print(f"正在上传包含请求信息的JSONL文件...")
+        file_object = self.batch_client.files.create(file=Path(file_path), purpose="batch")
+        print(f"文件上传成功。得到文件ID: {file_object.id}\n")
+        return file_object.id
+
+    def create_batch_job(self, input_file_id):
+        print(f"正在基于文件ID，创建Batch任务...")
+        # 请注意：选择Embedding文本向量模型进行调用时,endpoint的值需填写"/v1/embeddings"
+        batch = self.batch_client.batches.create(input_file_id=input_file_id, endpoint="/v1/chat/completions", completion_window="24h")
+        print(f"Batch任务创建完成。 得到Batch任务ID: {batch.id}\n")
+        return batch.id
+
+    def check_job_status(self, batch_id):
+        print(f"正在检查Batch任务状态...")
+        batch = self.batch_client.batches.retrieve(batch_id=batch_id)
+        print(f"Batch任务状态: {batch.status}\n")
+        return batch.status
+
+    def get_output_id(self, batch_id):
+        print(f"正在获取Batch任务中执行成功请求的输出文件ID...")
+        batch = self.batch_client.batches.retrieve(batch_id=batch_id)
+        print(f"输出文件ID: {batch.output_file_id}\n")
+        return batch.output_file_id
+
+    def get_error_id(self, batch_id):
+        print(f"正在获取Batch任务中执行错误请求的输出文件ID...")
+        batch = self.batch_client.batches.retrieve(batch_id=batch_id)
+        print(f"错误文件ID: {batch.error_file_id}\n")
+        return batch.error_file_id
+
+    def download_results(self, output_file_id, output_file_path):
+        print(f"正在打印并下载Batch任务的请求成功结果...")
+        content = self.batch_client.files.content(output_file_id)
+        # 打印部分内容以供测试
+        print(f"打印请求成功结果的前1000个字符内容: {content.text[:1000]}...\n")
+        # 保存结果文件至本地
+        content.write_to_file(output_file_path)
+        print(f"完整的输出结果已保存至本地输出文件result.jsonl\n")
+    
+    def _create_jsonl_request(self, id, messages):
+        """创建符合DashScope批处理API要求的JSONL请求格式"""
+        return {
+            "custom_id" : str(id),
+            "method" : "POST",
+            "url" : "/v1/chat/completions",
+            "body" : {
+                "model": self.model,
+                "messages": messages,
+            }
+        }
+        
+    async def _respond_to_user_batch(self, contents: List[List[Dict]], include_history: bool = False) -> List[str]:
+        # prepare input jsonl
+        assert include_history == False, "batch mode does not support include_history"
+
+        input_file = os.path.join(os.path.dirname(__file__), f"input_{str(self)}.jsonl")
+        output_file = os.path.join(os.path.dirname(__file__), f"output_{str(self)}.jsonl")
+        error_file = os.path.join(os.path.dirname(__file__), f"error_{str(self)}.jsonl")
+
+        if os.path.exists(output_file):
+            results = []
+            with open(output_file, "r") as f:
+                for line in f:
+                    # 解析JSONL格式的输出
+                    # 这里假设每行都是一个有效的JSON对象
+                    # 如果有多行输出，可以根据需要进行处理
+                    try:
+                        data = json.loads(line)
+                        if data["response"]["status_code"] == 200:
+                            results.append(data["response"]["body"]["choices"][0]["message"]["content"])
+                        else:
+                            results.append(None)
+                    except json.JSONDecodeError:
+                        print(f"无法解析的行: {line}")
+                        continue
+            return results
+
+        b_messages: List[List[Dict]] = []
+        # convert mm input to aliyun path
+        for content in contents:
+            messages = [{"role": "system", "content": self._generate_system_prompt()},
+                       {"role": "user", "content": content}]
+            b_messages.append(messages)
+        for messages  in b_messages:
+            uploaded = BaseAgent._preprocess_messages(self.model, messages, os.getenv("DASHSCOPE_API_KEY"))
+
+        
+        with open(input_file, "w") as f:
+            for i, message in enumerate(b_messages):
+                # 创建正确格式的JSONL请求
+                jsonl_request = self._create_jsonl_request(i, message)
+                f.write(f"{json.dumps(jsonl_request, ensure_ascii=False)}\n")
+        
+        try:
+            # Step 1: 上传包含请求信息的JSONL文件,得到输入文件ID,如果您需要输入OSS文件,可将下行替换为：input_file_id = "实际的OSS文件URL或资源标识符"
+            input_file_id = self.upload_file(input_file)
+            # Step 2: 基于输入文件ID,创建Batch任务
+            batch_id = self.create_batch_job(input_file_id)
+            # Step 3: 检查Batch任务状态直到结束
+            status = ""
+            while status not in ["completed", "failed", "expired", "cancelled"]:
+                status = self.check_job_status(batch_id)
+                print(f"等待任务完成...")
+                time.sleep(10)  # 等待10秒后再次查询状态
+            # 如果任务失败,则打印错误信息并退出
+            if status == "failed":
+                batch = self.batch_client.batches.retrieve(batch_id)
+                print(f"Batch任务失败。错误信息为:{batch.errors}\n")
+                print(f"参见错误码文档: https://help.aliyun.com/zh/model-studio/developer-reference/error-code")
+                return
+            # Step 4: 下载结果：如果输出文件ID不为空,则打印请求成功结果的前1000个字符内容，并下载完整的请求成功结果到本地输出文件;
+            # 如果错误文件ID不为空,则打印请求失败信息的前1000个字符内容,并下载完整的请求失败信息到本地错误文件.
+            output_file_id = self.get_output_id(batch_id)
+            if output_file_id:
+                self.download_results(output_file_id, output_file)
+                # Load output jsonl and return list of str
+                results = []
+                with open(output_file, "r") as f:
+                    for line in f:
+                        # 解析JSONL格式的输出
+                        # 这里假设每行都是一个有效的JSON对象
+                        # 如果有多行输出，可以根据需要进行处理
+                        try:
+                            data = json.loads(line)
+                            if data["response"]["status_code"] == 200:
+                                results.append(data["response"]["body"]["choices"][0]["message"]["content"])
+                            else:
+                                results.append(None)
+                        except json.JSONDecodeError:
+                            print(f"无法解析的行: {line}")
+                            continue
+                return results
+            error_file_id = self.get_error_id(batch_id)
+            if error_file_id:
+                self.download_errors(error_file_id, error_file)
+                print(f"参见错误码文档: https://help.aliyun.com/zh/model-studio/developer-reference/error-code")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            print(f"参见错误码文档: https://help.aliyun.com/zh/model-studio/developer-reference/error-code")
+        
+
+
+    def _call_dashscope(self, messages):
+        """在线程中调用DashScope API"""
+        response = dashscope.MultiModalConversation.call(
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
+            model='qwen2.5-vl-32b-instruct',
+            messages=messages
+        )
+        if response.status_code == HTTPStatus.OK:
+            return response.output
+        else:
+            raise ValueError(f"DashScope API调用失败: {response.message} \n {messages}")
+    
+    def _call_openai(self, messages):
+        """在线程中调用OpenAI API"""
+        # 使用线程本地的客户端
+        client = self._get_thread_client()
+        response = client.chat.completions.create(
             model=self.model,
             messages=messages
         )
+        return response
+    
+    async def respond_to_multiple(self, messages_list: List[List[Dict]], batch_size: Optional[int] = None) -> List[str]:
+        """
+        并发回应多个用户消息
         
-        reply = response.choices[0].message.content
+        参数:
+            messages_list: 多个消息列表
+            batch_size: 每批处理的消息数量，默认为None（使用max_workers）
         
-        # 记录智能体回复
-        self.memory.add_conversation("assistant", reply)
+        返回:
+            回复列表
+        """
+        batch_size = batch_size or self.max_workers
+        results = []
         
-        return reply
+        # 分批处理消息
+        for i in range(0, len(messages_list), batch_size):
+            batch = messages_list[i:i+batch_size]
+            
+            # 为每个消息创建任务
+            tasks = [self._respond_to_user(message) for message in batch]
+            
+            # 执行任务并获取结果
+            batch_results = await asyncio.gather(*tasks)
+            results.extend(batch_results)
+        
+        return results
     
     async def _talk_to_agent(self, message: str, other_agent: 'BaseAgent') -> str:
         """与另一个智能体交谈"""
         # 记录发送给其他智能体的消息
-        self.memory.add_conversation("user", f"[To {other_agent.characteristics.name}]: {message}")
+        with self.memory_lock:
+            self.memory.add_conversation("user", f"[To {other_agent.characteristics.name}]: {message}")
         
         # 获取其他智能体的回复
         reply = await other_agent._respond_to_user(message)
         
         # 记录其他智能体的回复
-        self.memory.add_conversation("assistant", f"[From {other_agent.characteristics.name}]: {reply}")
+        with self.memory_lock:
+            self.memory.add_conversation("assistant", f"[From {other_agent.characteristics.name}]: {reply}")
         
         return reply
     
@@ -159,7 +447,58 @@ class BaseAgent:
     
     def clear_memory(self):
         """清除智能体的记忆"""
-        self.memory = Memory()
+        with self.memory_lock:
+            self.memory = Memory()
+    
+    async def batch_process_questions(self, questions: List[Dict[str, Any]], context: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """
+        批量处理问题
+        
+        参数:
+            questions: 问题列表，每个问题是一个字典，包含问题文本
+            context: 所有问题共享的上下文
+            
+        返回:
+            包含回答的问题列表
+        """
+        # 准备所有消息
+        messages_list = []
+        
+        for question in questions:
+            content = []
+            
+            # 组合问题和上下文
+            question_text = question.get("question", "")
+            
+            if context:
+                if 'text' in context:
+                    content.append({"type": "text", "text": f"Given the context: {context['text']} answer: {question_text}"})
+                else:
+                    content.append({"type": "text", "text": question_text})
+                    
+                if 'image' in context:
+                    if isinstance(context['image'], list):
+                        for image in context['image']:
+                            content.append({"type": "image_url", "image_url": image})
+                    else:
+                        content.append({"type": "image_url", "image_url": context['image']})
+                        
+                if 'video' in context:
+                    content.append({"type": "video", "video": context['video']})
+            else:
+                # 没有上下文的情况
+                content.append({"type": "text", "text": question_text})
+            
+            messages_list.append(content)
+        
+        # 批量获取回复
+        replies = await self.respond_to_multiple(messages_list)
+        
+        # 将回复添加到问题中
+        for i, reply in enumerate(replies):
+            questions[i]["answer"] = reply
+        
+        return questions
 
 class AudienceAgent(BaseAgent):
     """代表普通观众视角的智能体"""
@@ -235,7 +574,8 @@ class AudienceAgent(BaseAgent):
         self.memory.add_knowledge("demographics", self.demographics)
         self.memory.add_knowledge("viewing_preferences", self.viewing_preferences)
         self.memory.add_knowledge("viewing_history", self.viewing_history)
-    
+    def __str__(self):
+        return super().__str__()
     def _generate_system_prompt(self) -> str:
         """重写系统提示词生成方法，加入普通观众视角"""
         base_prompt = super()._generate_system_prompt()
@@ -369,7 +709,8 @@ class CriticAgent(BaseAgent):
         self.memory.add_knowledge("specialty", self.specialty)
         self.memory.add_knowledge("critic_style", self.critic_style)
         self.memory.add_knowledge("publications", self.publications)
-    
+    def __str__(self):
+        return super().__str__()
     def _generate_system_prompt(self) -> str:
         """重写系统提示词生成方法，加入更多专业评论背景"""
         base_prompt = super()._generate_system_prompt()
@@ -504,7 +845,8 @@ class CulturalExpertAgent(BaseAgent):
         self.memory.add_knowledge("cultural_background", self.cultural_background)
         self.memory.add_knowledge("expertise_areas", self.expertise_areas)
         self.memory.add_knowledge("academic_background", self.academic_background)
-    
+    def __str__(self):
+        return super().__str__()
     def _generate_system_prompt(self) -> str:
         """重写系统提示词生成方法，加入更多文化专家背景"""
         base_prompt = super()._generate_system_prompt()

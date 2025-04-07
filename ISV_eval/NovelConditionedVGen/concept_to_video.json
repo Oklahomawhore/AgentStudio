@@ -1,0 +1,102 @@
+{
+    "Action": [
+      {
+        "title": "Kill Switch",
+        "description": "A retired black ops agent discovers that a secret government kill switch implanted in his body is about to be activated. With only 24 hours to live, he must track down the ones who betrayed him and disable the switch before it’s too late."
+      },
+      {
+        "title": "Skybound",
+        "description": "After a terrorist organization hijacks an advanced, AI-controlled fighter jet, the only pilot who can override its controls is the disgraced engineer who designed it. He’s forced back into action to stop an aerial catastrophe before the jet is used for mass destruction."
+      }
+    ],
+    "Sci-Fi": [
+      {
+        "title": "ECHO Protocol",
+        "description": "In the near future, a company offers the elite a digital backup of their consciousness, allowing them to relive their best memories in a simulated world. When a hacker infiltrates the system, the backups become self-aware and fight to break free into the real world."
+      },
+      {
+        "title": "Astra Nova",
+        "description": "A space station orbiting a newly discovered exoplanet goes dark. A rescue team is sent to investigate, only to find the crew missing and strange, shifting structures growing inside. Something alien is rewriting reality itself."
+      }
+    ],
+    "Horror": [
+      {
+        "title": "The Hollow Ones",
+        "description": "A forensic scientist investigating a string of ritualistic murders in a small town begins seeing shadowy, faceless figures in her dreams. As she gets closer to the truth, she realizes the figures are real—and they are watching her."
+      },
+      {
+        "title": "Echo House",
+        "description": "A social worker checks on an abandoned house where multiple families vanished without a trace. Each room she enters plays out the last memories of those who disappeared—until she starts seeing herself in the echoes of the past."
+      }
+    ],
+    "Thriller": [
+      {
+        "title": "False Witness",
+        "description": "A woman in witness protection testifies against a powerful crime lord, but when people start recognizing her in different cities—despite her new identity—she realizes someone is leaking her location on purpose."
+      },
+      {
+        "title": "The Labyrinth",
+        "description": "A detective chasing a serial killer finds himself inside an underground maze where every corridor shifts. The deeper he goes, the more he realizes the killer has turned the labyrinth into a psychological puzzle designed just for him."
+      }
+    ],
+    "Fantasy": [
+      {
+        "title": "The Last Archon",
+        "description": "In a world where magic is powered by emotions, a cynical warrior discovers she is the last of an ancient order that can manipulate the magic of others. When a tyrant seeks to exploit her abilities, she must embrace her destiny or let the world fall into ruin."
+      },
+      {
+        "title": "Hollow Crown",
+        "description": "A dying king performs a forbidden ritual to extend his reign, but the spell backfires, creating an alternate version of himself who grows stronger each day. Now, his kingdom must choose: follow the original king or his perfect, ruthless doppelgänger."
+      }
+    ],
+    "Comedy": [
+      {
+        "title": "Glitch in the System",
+        "description": "A customer service representative at a major corporation realizes his entire life is an elaborate AI simulation designed to test human patience. Instead of playing along, he starts breaking the rules—causing absurd glitches that spiral into chaos."
+      },
+      {
+        "title": "Dead Wrong",
+        "description": "A broke actor fakes his own death to boost his career, but the lie becomes too successful. Now famous posthumously, he must secretly find a way back into Hollywood without exposing himself as a fraud."
+      }
+    ],
+    "Crime": [
+      {
+        "title": "The Art of Deception",
+        "description": "A world-class art forger is blackmailed into creating the perfect fake of a lost painting. But when the real painting resurfaces at the last moment, he must pull off an impossible con to avoid being exposed—and killed."
+      },
+      {
+        "title": "Exit Plan",
+        "description": "A getaway driver is framed for a heist he didn’t commit. With every criminal in the city after him, he has 24 hours to uncover the real thieves and clear his name before he’s caught in the crossfire."
+      }
+    ],
+    "Drama": [
+      {
+        "title": "Vanishing Point",
+        "description": "A celebrated pianist suddenly loses all ability to recognize music after an accident. As he struggles to rebuild his life, he must confront his past and decide if his identity was ever truly tied to his art."
+      },
+      {
+        "title": "Inheritance",
+        "description": "After their billionaire father dies, three estranged siblings must complete a series of psychological and moral tests to prove they’re worthy of his fortune—only to discover he may still be controlling them from beyond the grave."
+      }
+    ],
+    "Adventure": [
+      {
+        "title": "The Lost City of Tenebris",
+        "description": "A team of explorers searches for a fabled underground city hidden beneath the Amazon. As they go deeper, they realize the city is still inhabited—by something inhuman that does not want them to leave."
+      },
+      {
+        "title": "Storm Chaser",
+        "description": "A reckless storm chaser obsessed with finding the perfect tornado stumbles upon an ancient weather phenomenon that has been hidden from the world. But as he pursues it, he unknowingly unleashes something that should have remained buried."
+      }
+    ],
+    "Mystery": [
+      {
+        "title": "The Last Puzzle",
+        "description": "A reclusive billionaire leaves behind a cryptic puzzle upon his death, promising his fortune to whoever can solve it. A journalist discovers the puzzle is more than a game—it’s a trail of dark secrets that could rewrite history."
+      },
+      {
+        "title": "The Silent Witness",
+        "description": "A mute girl is the sole survivor of a brutal murder spree, but she communicates only through paintings. As a detective deciphers the hidden messages in her art, he realizes she knows the killer’s identity—but also something far worse."
+      }
+    ]
+  }

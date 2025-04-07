@@ -42,6 +42,7 @@ PREPRODUCTION_PROMPTS = {
 
     Note:
     	•	Each video segment is fixed at 5 seconds in length, but the music track can span multiple shots.
+        •   Design only three parts of music, each for the setup, confrontation, and resolution, scenes that is the setup shares the identical music description, and so on.
     	•	Dialogue must use "\\" notation instead of regular quotation marks.
     	•	If the scene does not contain a frontal human face, use "t2v" (text-to-video).
     	•	If the scene contains a frontal human face, use "i2v" (image-to-video).
@@ -53,100 +54,110 @@ PREPRODUCTION_PROMPTS = {
         "1": {
             "scene": "Medium shot",
             "style": "Realistic",
+            "act" : "Setup",
             "content": "Victorian-era London. A dimly lit study filled with bookshelves and antique furniture. Nighttime, a single candle flickers on a wooden desk. <#Mr. Holmes#> sits in a high-backed chair, eyes closed, fingers pressed together in deep thought. Outside, rain patters against the window, casting ghostly reflections.",
             "duration": 5,
             "motion": "Slow push-in",
-            "music": "A soft violin melody, carrying an air of mystery",
+            "music": "A soft violin melody, carrying an air of mystery, accompanied by subtle piano chord, underscoring tension",
             "dialogue": "None",
             "type": "t2v"
         },
         "2": {
             "scene": "Close-up",
             "style": "Realistic",
+            "act" : "Setup",
             "content": "The camera focuses on <#Holmes#> as he suddenly opens his piercing eyes. His gaze sharpens, as if sensing something unseen. A clock in the corner strikes midnight. The sound of a carriage stopping outside echoes through the quiet room.",
             "duration": 5,
             "motion": "Subtle shake",
-            "music": "The violin intensifies slightly, building suspense",
+            "music": "A soft violin melody, carrying an air of mystery, accompanied by subtle piano chord, underscoring tension",
             "dialogue": "None",
             "type": "i2v"
         },
         "3": {
             "scene": "Medium shot",
             "style": "Realistic",
+            "act" : "Setup",
             "content": "A knock on the door. <#Dr. Watson#>, dressed in his evening robe, enters hurriedly, concern etched on his face. He steps into the dim light and speaks urgently:",
             "duration": 5,
             "motion": "Gentle push-in",
-            "music": "A subtle piano chord, underscoring tension",
+            "music": "A soft violin melody, carrying an air of mystery, accompanied by subtle piano chord, underscoring tension",
             "dialogue": "<#Watson#>: \"There’s been another murder, Holmes. The police need you immediately.\"",
             "type": "i2v"
         },
         "4": {
             "scene": "Wide shot",
             "style": "Mystical",
+            "act" : "Setup",
             "content": "Fog swirls through the cobbled streets of Victorian London. A hansom cab speeds through the misty night, carrying <#Holmes#> and <#Watson#> toward the crime scene. Gas lamps flicker, casting eerie shadows on the damp pavement.",
             "duration": 5,
             "motion": "Tracking shot from behind",
-            "music": "Deep cellos and distant bells create a sense of urgency",
+            "music": "A soft violin melody, carrying an air of mystery, accompanied by subtle piano chord, underscoring tension",
             "dialogue": "None",
             "type": "t2v"
         },
         "5": {
             "scene": "Medium shot",
             "style": "Mystical",
+            "act" : "Setup",
             "content": "<#Holmes#> and <#Watson#> arrive at a grand but decaying mansion. The heavy wooden doors creak open, revealing a dimly lit hallway with faded wallpaper and dust-covered chandeliers. The air is thick with unease.",
             "duration": 5,
             "motion": "Slow panning shot to establish setting",
-            "music": "A deep bass note resonates, followed by soft whispers of a choir",
+            "music": "A soft violin melody, carrying an air of mystery, accompanied by subtle piano chord, underscoring tension",
             "dialogue": "None",
             "type": "t2v"
         },
         "6": {
             "scene": "Wide shot",
             "style": "Ethereal",
+            "act" : "Setup",
             "content": "Dawn breaks over London. Big Ben stands tall against the golden sky. The streets are now bustling, oblivious to the darkness that lurks beneath the city's surface. <#Holmes#> stands alone on a bridge, staring into the distance, lost in thought.",
             "duration": 5,
             "motion": "Slow pan across the skyline",
-            "music": "A soft violin solo, both melancholic and contemplative",
+            "music": "A soft violin melody, carrying an air of mystery, accompanied by subtle piano chord, underscoring tension",
             "dialogue": "None",
             "type": "t2v"
         },
         "7": {
             "scene": "Close-up",
             "style": "Dramatic",
+            "act" : "Setup",
             "content": "<#Watson#> places a reassuring hand on <#Holmes#>'s shoulder. His expression is full of concern.",
             "duration": 5,
             "motion": "Gentle push-in",
-            "music": "The violin melody slows, carrying warmth",
+            "music": "A soft violin melody, carrying an air of mystery, accompanied by subtle piano chord, underscoring tension",
             "dialogue": "<#Watson#>: \"You can’t solve everything alone, my friend.\"",
             "type": "i2v"
         },
         "8": {
             "scene": "Extreme close-up",
             "style": "Thriller",
+            "act" : "Confrontation",
             "content": "A gloved hand slips a blood-stained letter into a wooden drawer. The camera lingers on the crimson seal, marked with an unfamiliar symbol.",
             "duration": 5,
             "motion": "Still frame, then a sudden zoom-in",
-            "music": "A sharp piano note strikes, signaling danger",
+            "music": "A sharp piano note strikes, signaling danger, followed by a low rumble of thunder, underscoring suspense",
             "dialogue": "None",
             "type": "t2v"
         },
         "9": {
             "scene": "Medium shot",
             "style": "Thriller",
+            "act" : "Confrontation",
             "content": "Back in Baker Street, <#Holmes#> studies the letter under the flickering gaslight. He slowly turns to <#Watson#> with a grave expression.",
             "duration": 5,
             "motion": "Steady push-in",
-            "music": "Tension builds with rising strings",
+            "music": "A sharp piano note strikes, signaling danger, followed by a low rumble of thunder, underscoring suspense",
             "dialogue": "<#Holmes#>: \"This… changes everything.\"",
             "type": "i2v"
         },
         "10": {
             "scene": "Wide shot",
             "style": "Epic",
+            "act" : "Confrontation",
             "content": "On the rooftops of London, a shadowy figure watches from above. His silhouette blends with the night as he vanishes into the mist.",
             "duration": 5,
             "motion": "Slow tracking shot, followed by a fade-out",
-            "music": "A haunting choir swells, then fades into silence",
+            "music": "A sharp piano note strikes, signaling danger, followed by a low rumble of thunder, underscoring suspense",
             "dialogue": "None",
             "type": "t2v"
         }

@@ -464,15 +464,17 @@ def replace_characters_in_content(content, characters):
     # Regex pattern to match <#character_name#> or <character_name>
     pattern = r"<#(.*?)#>|<(.*?)>"
 
+    character_list = []
     # Function to replace the matched pattern with the description
     def replace(match):
         # Extract the character name from either group
         character_name = match.group(1) or match.group(2)
+        character_list.append(character_name)
         # Replace with the description or keep the original pattern if not found
         return f"{character_name} ({characters.get(character_name, f'<{character_name}>')})"
 
     # Use re.sub to replace all occurrences of the pattern
-    return re.sub(pattern, replace, content)
+    return re.sub(pattern, replace, content), character_list
 
 def extract_plan_from_response(response_text, plan_file,characters={}):
     """
@@ -811,29 +813,57 @@ def conditional_video_prompt(input_text, story, i2v=False):
     else:
         # downgrade
         return input_text
-    
 
-def Execute_plan(plan, task, task_dir, characters={}, story=""):
+
+def generate_storyboard(prompt, character_imgs):
+    """
+    Generate a storyboard image based on the given prompt and character images.
+    
+    Args:
+        prompt (str): The prompt for the storyboard.
+        character_imgs (list): List of character image paths.
+
+    Returns:
+        str: The path to the generated storyboard image.
+    """
+    # Placeholder for actual storyboard generation logic
+    messages = []
+    contents = []
+    contents.append({"type": "text", "text": "Generate an image according to the instruction: {}".format(prompt)})
+    for img in character_imgs:
+        contents.append({"type": "image_url", "image_url": {"url": img}})
+    messages.append({"role": "user", "content": contents})
+    completion = OpenAIClient.chat.completions.create(
+                        model='gpt-4o-image',
+                        messages=messages,
+                    )
+    assistant_response = completion.choices[0].message
+    response_text = completion.choices[0].message.content
+    return response_text
+
+def Execute_plan(plan, task, task_dir, characters={}, story="", i2v=False):
     if os.path.exists(f"{task_dir}/error.log"):
         return
     
     
     result = ""
-    character_img = DefaultDict()
+    # TODO: add i2i implementation
+    # character_img = DefaultDict()
 
-    if os.path.exists(f"{task_dir}/characters_img.json"):
-        with open(f"{task_dir}/characters_img.json", "r") as f:
-            character_img = json.load(f)
-    else:
-        for character_name, character_description in characters.items():
-            print(f"Character: {character_name} - {character_description}")
-            img = gen_img(character_description)
-            image_bytes = base64.b64decode(img)
-            with open(f"{task_dir}/{character_name.replace('/','')}.png", "wb") as f:
-                f.write(image_bytes)
-            character_img[character_name] = f"{task_dir}/{character_name}.png"
-        with open(f"{task_dir}/characters_img.json", "w", encoding='utf-8') as f:
-            json.dump(character_img, f, indent=4,ensure_ascii=False)
+    if i2v:
+        if os.path.exists(f"{task_dir}/characters_img.json"):
+            with open(f"{task_dir}/characters_img.json", "r") as f:
+                character_img = json.load(f)
+        else:
+            for character_name, character_description in characters.items():
+                print(f"Character: {character_name} - {character_description}")
+                img = gen_img(character_description)
+                image_bytes = base64.b64decode(img)
+                with open(f"{task_dir}/{character_name.replace('/','')}.png", "wb") as f:
+                    f.write(image_bytes)
+                character_img[character_name] = f"{task_dir}/{character_name}.png"
+            with open(f"{task_dir}/characters_img.json", "w", encoding='utf-8') as f:
+                json.dump(character_img, f, indent=4,ensure_ascii=False)
 
     video_prompts = DefaultDict()
     if os.path.exists(f"{task_dir}/video_prompt.json"):
@@ -846,7 +876,7 @@ def Execute_plan(plan, task, task_dir, characters={}, story=""):
     tts_tasks = []
     for i,step in enumerate(plan):
         Task = step.get("Task", "")
-        Task = "t2v"
+        Task = "t2v" if not i2v else "i2v"
         if Task == "t2v":
             # Generate video
             # In this step, we expand our content into video prompt, conditioned on the overall storyline.
@@ -855,10 +885,11 @@ def Execute_plan(plan, task, task_dir, characters={}, story=""):
             video_prompts[str(step['Step'])] = video_prompt
             
             # for now, image to video cannot handle character reference, so substitute with character descriptions in content
-            video_tasks.append((replace_characters_in_content(video_prompt, characters), ""))
+            prompt_enhance, character_list =  replace_characters_in_content(video_prompt, characters)
+            video_tasks.append((prompt_enhance, ""))
         
             # Generate music
-            music_tasks.append(step['Music_prompt']) if step['Music_prompt'] != "无" else ("", [])
+            music_tasks.append(step['Music_prompt']) if step['Music_prompt'] not in ["无", "None"] else ("", [])
         
             # Generate TTS
             voice_direction = {}
@@ -876,7 +907,10 @@ def Execute_plan(plan, task, task_dir, characters={}, story=""):
             video_prompts[str(step['Step'])] = video_prompt
             
             # for now, image to video cannot handle character reference, so substitute with character descriptions in content
-            video_tasks.append((replace_characters_in_content(video_prompt, characters), "<LastFrame>"))
+            
+            prompt_enhance, character_list =  replace_characters_in_content(video_prompt, characters)
+            first_frame = generate_storyboard(prompt_enhance, [character_img[name] for name in character_list])
+            video_tasks.append((prompt_enhance, "<LastFrame>"))
         
             # Generate music
             music_tasks.append(step['Music_prompt']) if step['Music_prompt'] != "无" else ("", [])
@@ -915,6 +949,7 @@ def main():
     parser.add_argument("--input_json", type=str, help="Input json file")
     parser.add_argument("--outdir", type=str, help="Output directory")
     parser.add_argument("--dry-run", action='store_true', help='Only make plans, skip execute')
+    parser.add_argument("--i2i", action='store_true', help='Use i2i model')
     args = parser.parse_args()
     
     input_json = args.input_json
@@ -977,6 +1012,8 @@ def main():
                     # remove <think> tag in deepseek-r1 response
                     if "</think>" in response_text:
                         response_text = response_text.split("</think>")[-1]
+                    if '请求错误' in response_text:
+                        raise ValueError("请求错误")
 
                 except Exception as e:
                     print(f"Error in Azure API, switch to Claude API: {str(e)}") 
@@ -1035,7 +1072,7 @@ def main():
             save_plan_json(Dict_for_plan, f"{task_dir}/Dict_for_plan.json")
             save_plan_json([MessageToJson(m) for m in messages], f"{task_dir}/messages.json")
         if  not args.dry_run:
-            Execute_plan(plan,task, task_dir, characters=characters, story=story)
+            Execute_plan(plan,task, task_dir, characters=characters, story=story, i2v=args.i2i)
         else:
             print("dry run, skipping execute")
         
@@ -1089,3 +1126,6 @@ if __name__ == "__main__":
     # content = "Generate video:中景 写实 轻微推镜头，逐渐拉近两人。 <杨喀雄>在花园中与<周女>幽会，互相依偎，笑声不断。"
     # print(extract_character_from_content(content))
     # print(replace_characters_in_content(content, characters))
+
+    # rs = generate_storyboard("夜幕降临的寺庙壁画世界，中景镜头，低角度仰拍，画面充满神秘感和奇幻氛围。<#金甲使者#>身披金光闪闪的铠甲，头盔上镶嵌着神秘的符文，在火光的映照下熠熠生辉，他神情威严，目光如炬，带领着一群同样身着铠甲的卫士整齐划一地走来。卫士们手持发光的法器，脚步坚定有力，地面闪烁着奇异的符文，空气中弥漫着淡淡的魔法光芒。远处，低垂的乌云中透出微弱的火光，为场景增添了一丝紧张和压迫感。整个画面色调以冷色调为主，辅以火光的暖色调，形成强烈的视觉对比，突出<#金甲使者#>及其队伍的威严和神秘感。<#老和尚#>在不远处看着这一切", ["/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning/Task_0007/金甲使者.png", "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning/Task_0007/老和尚.png"])
+    # print(rs)
