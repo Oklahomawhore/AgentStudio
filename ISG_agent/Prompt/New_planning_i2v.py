@@ -1,5 +1,5 @@
 PREPRODUCTION_PROMPTS = {
-    "剧本规划": """
+    "Concept Planning": """
     I need a short-video script with 2-3 minutes long according to a story ouline draft. Use the ''Hollywood Three-act structure`` to develop the story. Since the video length is limited, make the story as simple as possible.
     Three-act icludes:  Setup, the Confrontation, and the Resolution.
 
@@ -14,17 +14,17 @@ PREPRODUCTION_PROMPTS = {
 
     Think about the main character's childhood memory or life encounters that leads the main character to where he/she is today.
     """,
-    "剧本编写": """
+    "Script Writing": """
     Write the plays based on the scripts in the previous scripting step. Each play should have clear boundary and extremely simple motion and setup, 
     Here a ''play`` is not what is common in operas or in theatre or in movies, a play is just a fragment of the development of the current situation, 
     which is coherent with both the preceding and the following act to make the whole story both logically and visually consistent.
     """,
-    "选角": """
+    "Casting Design": """
     Select and hire actors. For each character in the script, create a detailed casting requirement sheet, including descriptions of age, gender, nationality, time period, skin color, appearance, clothing, and other relevant details.
     Particularly, ensure that the character's physical appearance is described in great detail. This character may be a fictional one that does not exist in reality.
     Tip: Male characters must be handsome, and female characters must be beautiful and sexy to attract the audience's attention.
     """,
-    "角色提取" : """
+    "Casting Extraction" : """
     Extract the casting requirement sheets from the casting and equipment sections and generate a JSON object for further processing. For example:
     ```
     {
@@ -35,7 +35,7 @@ PREPRODUCTION_PROMPTS = {
     }
     ```
     """,
-    "脚本提取": """
+    "Detailed Storyboarding": """
     Extracting Shot Descriptions from a Storyboard
 
     Generate a JSON object from the storyboard, where each shot is structured for further processing.
@@ -49,6 +49,7 @@ PREPRODUCTION_PROMPTS = {
     	•	If the user does not provide an image, the first scene cannot be "i2v".
 
     For example, using a well-known English-language setting like Victorian London, the JSON structure could look like this:
+    MAKE SURE TO GENERATE THE WHOLE JSON OBJECT NON-STOP!!!
 
     {
         "1": {
@@ -162,7 +163,5 @@ PREPRODUCTION_PROMPTS = {
             "type": "t2v"
         }
     }
-
-    This example follows a Sherlock Holmes-style mystery, maintaining the same structure while adapting the setting, characters, and themes to a widely recognized English-language story.
     """,
 }

@@ -5,14 +5,24 @@ import matplotlib.pyplot as plt
 import requests
 from PIL import Image
 import base64 
-from typing import Tuple, List
+from typing import Tuple, List, Dict
 from threading import Lock
 import glob
+import dotenv
+from pathlib import Path
+import json
+import time
 
+
+dotenv.load_dotenv()
 
 from tqdm import tqdm
+from openai import OpenAI
+from dashscope.utils.oss_utils import preprocess_message_element
 
 make_dir_lock = Lock()
+
+batch_client = OpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"), base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
 
 def format_time_to_hhmmss(seconds):
     """
@@ -291,7 +301,7 @@ def extract_scene(input_video, output_path, start_time, end_time):
         end_time (float): End time in seconds
     """
     duration = end_time - start_time
-    os.system(f'ffmpeg -i "{input_video}" -ss {start_time} -t {duration} -c:v libx264 -c:a aac -strict experimental -b:a 128k "{output_path}" -y -loglevel error')
+    os.system(f'{os.getenv("FFMPEG_PATH")} -i "{input_video}" -ss {start_time} -t {duration} -c:v libx264 -c:a aac -strict experimental -b:a 128k "{output_path}" -y -loglevel error')
     return output_path
 
 
@@ -425,7 +435,7 @@ def cut_video_into_scenes(video_path, threshold=10.0, min_scene_length=1, output
         # Save scene clip if output directory is provided
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-            scene_path = os.path.join(output_dir, f"{video_name}_scene_{i+1:03d}.mp4")
+            scene_path = os.path.join(output_dir , f"{video_name}_scene_{i+1:03d}.mp4")
 
             # Extract and save the scene
             extract_scene(video_path, scene_path, scene_info['start_time'], scene_info['end_time'])
@@ -440,3 +450,165 @@ def cut_video_into_scenes(video_path, threshold=10.0, min_scene_length=1, output
     cap.release()
     print(f"检测到 {len(scenes)} 个场景")
     return scenes
+
+def upload_file(file_path):
+    print(f"正在上传包含请求信息的JSONL文件...")
+    file_object = batch_client.files.create(file=Path(file_path), purpose="batch")
+    print(f"文件上传成功。得到文件ID: {file_object.id}\n")
+    return file_object.id
+
+def create_batch_job(input_file_id):
+    print(f"正在基于文件ID，创建Batch任务...")
+    # 请注意：选择Embedding文本向量模型进行调用时,endpoint的值需填写"/v1/embeddings"
+    batch = batch_client.batches.create(input_file_id=input_file_id, endpoint="/v1/chat/completions", completion_window="24h")
+    print(f"Batch任务创建完成。 得到Batch任务ID: {batch.id}\n")
+    return batch.id
+def check_job_status(batch_id):
+    print(f"正在检查Batch任务状态...")
+    batch = batch_client.batches.retrieve(batch_id=batch_id)
+    print(f"Batch任务状态: {batch.status}\n")
+    return batch.status
+def get_output_id(batch_id):
+    print(f"正在获取Batch任务中执行成功请求的输出文件ID...")
+    batch = batch_client.batches.retrieve(batch_id=batch_id)
+    print(f"输出文件ID: {batch.output_file_id}\n")
+    return batch.output_file_id
+def get_error_id(batch_id):
+    print(f"正在获取Batch任务中执行错误请求的输出文件ID...")
+    batch = batch_client.batches.retrieve(batch_id=batch_id)
+    print(f"错误文件ID: {batch.error_file_id}\n")
+    return batch.error_file_id
+def download_results(output_file_id, output_file_path):
+    print(f"正在打印并下载Batch任务的请求成功结果...")
+    content = batch_client.files.content(output_file_id)
+    # 打印部分内容以供测试
+    print(f"打印请求成功结果的前1000个字符内容: {content.text[:1000]}...\n")
+    # 保存结果文件至本地
+    content.write_to_file(output_file_path)
+    print(f"完整的输出结果已保存至本地输出文件result.jsonl\n")
+def download_errors(error_file_id, error_file_path):
+    print(f"正在打印并下载Batch任务的请求失败信息...")
+    content = batch_client.files.content(error_file_id)
+    # 打印部分内容以供测试
+    print(f"打印请求失败信息的前1000个字符内容: {content.text[:1000]}...\n")
+    # 保存错误信息文件至本地
+    content.write_to_file(error_file_path)
+    print(f"完整的请求失败信息已保存至本地错误文件error.jsonl\n")
+def _create_jsonl_request(id, model, messages):
+    """创建符合DashScope批处理API要求的JSONL请求格式"""
+    return {
+        "custom_id" : str(id),
+        "method" : "POST",
+        "url" : "/v1/chat/completions",
+        "body" : {
+            "model": model,
+            "messages": messages,
+        }
+    }
+
+def _preprocess_messages(model: str, messages: List[dict],
+                             api_key: str):
+        """
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"image": ""},
+                        {"text": ""},
+                    ]
+                }
+            ]
+        """
+        has_upload = False
+        for message in messages:
+            content = message['content']
+            for elem in content:
+                if not isinstance(elem,
+                                  (int, float, bool, str, bytes, bytearray)):
+                    
+                    is_upload = preprocess_message_element(
+                        model, elem, api_key)
+                    if is_upload and not has_upload:
+                        has_upload = True
+        return has_upload
+
+def inference_batch(messages: List[List[Dict]], model: str, job_id=None) -> List[str]:
+    # prepare input jsonl
+    input_file = os.path.join(os.path.dirname(__file__),'tmp', f"input_{str(job_id)}.jsonl")
+    output_file = os.path.join(os.path.dirname(__file__),'tmp', f"output_{str(job_id)}.jsonl")
+    error_file = os.path.join(os.path.dirname(__file__),'tmp', f"error_{str(job_id)}.jsonl")
+    if os.path.exists(output_file):
+        results = []
+        with open(output_file, "r") as f:
+            for line in f:
+                # 解析JSONL格式的输出
+                # 这里假设每行都是一个有效的JSON对象
+                # 如果有多行输出，可以根据需要进行处理
+                try:
+                    data = json.loads(line)
+                    if data["response"]["status_code"] == 200:
+                        results.append(data["response"]["body"]["choices"][0]["message"]["content"])
+                    else:
+                        results.append(None)
+                except json.JSONDecodeError:
+                    print(f"无法解析的行: {line}")
+                    continue
+        return results
+    count = 0
+    for message  in messages:
+        uploaded = _preprocess_messages(model, message, os.getenv("DASHSCOPE_API_KEY"))
+        if uploaded:
+            count += 1
+    print(f"uploaded {count} in {len(messages)} messages.")
+    with open(input_file, "w") as f:
+        for i, message in enumerate(messages):
+            # 创建正确格式的JSONL请求
+            jsonl_request = _create_jsonl_request(i, model, message)
+            f.write(f"{json.dumps(jsonl_request, ensure_ascii=False)}\n")
+    
+    try:
+        # Step 1: 上传包含请求信息的JSONL文件,得到输入文件ID,如果您需要输入OSS文件,可将下行替换为：input_file_id = "实际的OSS文件URL或资源标识符"
+        input_file_id = upload_file(input_file)
+        # Step 2: 基于输入文件ID,创建Batch任务
+        batch_id = create_batch_job(input_file_id)
+        # Step 3: 检查Batch任务状态直到结束
+        status = ""
+        while status not in ["completed", "failed", "expired", "cancelled"]:
+            status = check_job_status(batch_id)
+            print(f"等待任务完成...")
+            time.sleep(10)  # 等待10秒后再次查询状态
+        # 如果任务失败,则打印错误信息并退出
+        if status == "failed":
+            batch = batch_client.batches.retrieve(batch_id)
+            print(f"Batch任务失败。错误信息为:{batch.errors}\n")
+            print(f"参见错误码文档: https://help.aliyun.com/zh/model-studio/developer-reference/error-code")
+            return
+        # Step 4: 下载结果：如果输出文件ID不为空,则打印请求成功结果的前1000个字符内容，并下载完整的请求成功结果到本地输出文件;
+        # 如果错误文件ID不为空,则打印请求失败信息的前1000个字符内容,并下载完整的请求失败信息到本地错误文件.
+        output_file_id = get_output_id(batch_id)
+        if output_file_id:
+            download_results(output_file_id, output_file)
+            # Load output jsonl and return list of str
+            results = []
+            with open(output_file, "r") as f:
+                for line in f:
+                    # 解析JSONL格式的输出
+                    # 这里假设每行都是一个有效的JSON对象
+                    # 如果有多行输出，可以根据需要进行处理
+                    try:
+                        data = json.loads(line)
+                        if data["response"]["status_code"] == 200:
+                            results.append(data["response"]["body"]["choices"][0]["message"]["content"])
+                        else:
+                            results.append(None)
+                    except json.JSONDecodeError:
+                        print(f"无法解析的行: {line}")
+                        continue
+            return results
+        error_file_id = get_error_id(batch_id)
+        if error_file_id:
+            download_errors(error_file_id, error_file)
+            print(f"参见错误码文档: https://help.aliyun.com/zh/model-studio/developer-reference/error-code")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        print(f"参见错误码文档: https://help.aliyun.com/zh/model-studio/developer-reference/error-code")

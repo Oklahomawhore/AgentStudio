@@ -6,6 +6,7 @@ import base64
 import dashscope
 from http import HTTPStatus
 import glob
+from typing import List, Tuple, Dict, Any
 
 import torch
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
@@ -17,16 +18,25 @@ from decord import VideoReader, cpu
 import hashlib
 import requests
 
-# We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.
-model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-    "Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
-    torch_dtype=torch.float16,
-    attn_implementation="flash_attention_2",
-    device_map="auto",
-)
+from util import inference_batch
 
-# default processer
-processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct-AWQ")
+model = None
+processor = None
+
+# Load the model and processor only once for local inference
+def load_model_and_processor():
+    global model, processor
+    if model is None or processor is None:
+        print("Loading Qwen2.5-VL model and processor...")
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            "Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+            torch_dtype=torch.float16,
+            attn_implementation="flash_attention_2",
+            device_map="auto",
+        )
+        processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct-AWQ", min_pixels=16 * 28 * 28, max_pixels=1280 * 28 * 28)
+        print("Model and processor loaded successfully.")
+    return model, processor
 
 from util import prepare_message_for_vllm
 dotenv.load_dotenv()
@@ -72,11 +82,13 @@ def get_video_frames(video_path, num_frames=128, cache_dir='tmp'):
     return video_file_path, frames, timestamps
 
 def inference(video_path, prompt, max_new_tokens=2048, total_pixels=20480 * 28 * 28, min_pixels=16 * 28 * 28):
+    global model, processor
+    model, processor = load_model_and_processor()
     messages = [
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": [
                 {"type": "text", "text": prompt},
-                {"video": video_path, "total_pixels": total_pixels, "min_pixels": min_pixels, "resized_width" : 320, "resized_height" : 240},
+                {"video": f"file://{video_path}", "min_pixels" : 1 * 28 * 28, "max_pixels": 3 * 28 * 28, "fps" : 1},
             ]
         },
     ]
@@ -91,6 +103,7 @@ def inference(video_path, prompt, max_new_tokens=2048, total_pixels=20480 * 28 *
 
     output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens)
     generated_ids = [output_ids[len(input_ids):] for input_ids, output_ids in zip(inputs.input_ids, output_ids)]
+    print(f"shape: {len(generated_ids)} {generated_ids}")
     output_text = processor.batch_decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
     return output_text[0]
 
@@ -100,11 +113,7 @@ def get_video_length(video_path):
     clip.close()
     return duration
 
-
 def score_video(video_path, prompt=None):
-    # Get length of video
-    video_length = get_video_length(video_path)
-    print("Video length (s) :", video_length)
     
     # client = OpenAI(
     #     # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
@@ -145,8 +154,28 @@ def score_video(video_path, prompt=None):
     return response["output"]["choices"][0]["message"].content[0]["text"]
     # return completion.choices[0].message.content
 
+def score_video_batch(video_path: List[str], prompt=None):
+    messages = []
+    for video in video_path:
+        message = []
+        contents = [
+            {"type" : "text", "text": prompt if prompt else "Judge the quality of this video, first state your reasons and then give a score from 1-10"}, 
+            {"type" : "video", "video": video}
+            ]
+        message.append({"role":"system", "content": "You are a video caption expert."})
+        message.append({"role": "user", "content": contents})
+        messages.append(message)
+    results = inference_batch(messages, "qwen-vl-max-latest", job_id=f"vlm_score_{video_path[0].split('/')[-1].split('.')[0]}")
+    return results
 
-
+def shorten_caption(scenes: List[str]):
+    messages = []
+    for scene in scenes:
+        prompt = f"given this detailed scene description: {scene['caption']}, give me a short version with only necessary details."
+        messages.append([{"role": "user", "content": prompt}])
+    results = inference_batch(messages, "qwen-vl-max-latest", job_id=f"vlm_score_{scenes[0]['path'].split('/')[-1].split('.')[0]}")
+    return results
 if __name__ == '__main__':
     prompt= "Localize a series of activity events in the video, output the start and end timestamp for each event, and describe each event with sentences. Provide the result in json format with 'mm:ss.ff' format for time depiction."
-    score_video("/data/wangshu/wangshu_code/ISG/ISV_eval/“来感受一下4K 60帧的丝滑”.mp4", prompt=prompt) # 这里的时间戳是视频的时间戳
+    response = inference("/data/wangshu/wangshu_code/ISG/ISV_eval/inception_part1.mp4", prompt=prompt, total_pixels=1280 * 28 * 28) # 这里的时间戳是视频的时间戳
+    print("response:", response)

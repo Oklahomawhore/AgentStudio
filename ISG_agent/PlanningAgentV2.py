@@ -763,9 +763,16 @@ def extract_structure(benchmark):
 
 def conditional_video_prompt(input_text, story, i2v=False):
     messages  = []
-    messages.append({"role": "developer", "content": ("作为一个视频生成提示词编写达人，你会根据背景故事和当前镜头内容来编写视频生成提示词。"
-                                                 "给你一段背景故事和当前的镜头内容，你要给出视频生成模型提示词。你的提示词要精炼准确，"
-                                                 "**注意**：在编写提示词的时候遇到<#角色名#>这样的格式要原封不动的保留。")})
+    messages.append({"role": "developer", "content": """As an expert in crafting prompts for video generation, your role is to write effective prompts based on a given background story and the current scene content.
+
+You will be provided with:
+	•	A background story
+	•	A description of the current scene
+
+Your task is to generate a precise and concise prompt suitable for a video generation model to create this scene.
+
+Important Note:
+If the scene description contains placeholders like <#CharacterName#>, you must keep them exactly as they are in your prompt without any changes."""})
 
     messages.append({"role" : "user", "content" : ("Tips for Writing prompts"
                             "Use Concise Prompts: To effectively guide the model's generation, keep your prompts short and to the point."
@@ -796,6 +803,7 @@ def conditional_video_prompt(input_text, story, i2v=False):
         print(f"Error in Azure API, switch to Claude API: {str(e)}") 
         print("Switch to Claude API")
         # print("Error in Azure API, switch to Claude API
+        messages[0]["role"] = "system"
         completion = ClaudeClient.chat.completions.create(
             model = "qwen2.5-vl-7b-instruct",
             # max_completion_tokens=8192,
@@ -1002,9 +1010,9 @@ def main():
                     completion = OpenAIClient.chat.completions.create(
                         # model='qwen2.5-vl-7b-instruct',
                         model='claude-3-7-sonnet-20250219',
+                        response_format={'type' : 'json'} if step_name == "Detailed Storyboarding" else None,
                         messages=messages,
-                        # max_completion_tokens=4096,
-                        # temperature=0.7,
+                        temperature=0.7,
                     )
                     assistant_response = completion.choices[0].message
                     response_text = completion.choices[0].message.content
@@ -1016,29 +1024,29 @@ def main():
                         raise ValueError("请求错误")
 
                 except Exception as e:
-                    print(f"Error in Azure API, switch to Claude API: {str(e)}") 
-                    print("Switch to Claude API")
-                    # print("Error in Azure API, switch to Claude API")
+                    print(f"Error in claude, switching to openai: {str(e)}") 
 
                     completion = ClaudeClient.chat.completions.create(
                         # model = "qwen2.5-vl-7b-instruct",
-                        model = 'gpt-4o',
-                        # max_completion_tokens=8192,
+                        model = 'gpt-4.5-preview-2025-02-27',
+                        response_format={'type' : 'json'} if step_name == "Detailed Storyboarding" else None,
                         messages=messages,
-                        # temperature=0.7,
+                        temperature=0.7,
                     )
                     assistant_response = completion.choices[0].message
                     response_text = completion.choices[0].message.content
-                if assistant_response and step_name == "角色提取":
+                if assistant_response and step_name == "Casting Extraction":
                     print("正在提取角色中...")
                     try:
                         characters = extract_json_from_response(response_text)
                         characters = json.loads(characters)
                     except Exception as e:
                         raise ValueError(f"Error extracting characters from completion {completion}")
+                        # fix possible json format error
+
                     characters = transform_character_descriptions(characters)
                     save_plan_json(characters, f"{task_dir}/characters.json")
-                if assistant_response and step_name == "剧本编写":
+                if assistant_response and step_name == "Script Writing":
                     print("正在提取分镜脚本中...")
                     story = response_text
                     with open(f"{task_dir}/story.txt", "w") as f:

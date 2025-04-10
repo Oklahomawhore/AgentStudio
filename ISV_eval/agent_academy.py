@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 import glob
 
-from vlm_score import score_video
+from vlm_score import score_video, score_video_batch, shorten_caption
 from movie_review_commission import MovieReviewCommission
 from agents import AudienceAgent, CulturalExpertAgent, CriticAgent
 from eval import calc_final_score
@@ -102,8 +102,10 @@ async def get_score(video_path, method='agent', threshold=30.0, min_scene_length
     """
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
+    output_dir = os.path.join(output_dir, os.path.basename(video_path).split('.')[0])
     # Cut video into scenes
-    scene_data_path = os.path.join(output_dir, os.path.basename(video_path).split('.')[0], "scenes_short.json")
+    scene_data_path = os.path.join(output_dir, "scenes_short.json")
+    os.makedirs(os.path.dirname(scene_data_path), exist_ok=True)
     if os.path.exists(scene_data_path):
         with open(scene_data_path, 'r') as f:
             scenes = json.load(f)
@@ -117,15 +119,19 @@ async def get_score(video_path, method='agent', threshold=30.0, min_scene_length
     with open('caption.txt', 'r') as f:
         prompt = f.read()
         # Get scene caption
-    for scene in tqdm(scenes, desc="captioning scenes"):
+    captions = score_video_batch([scene['path'] for scene in scenes], prompt=prompt)
+    for i, scene in enumerate(scenes):
         if 'caption' in scene:
             continue
-        caption = score_video(scene['path'], prompt=prompt)
-        scene['caption'] = caption
-
-        # Save scene caption
-        with open(scene_data_path, 'w') as f:
-            json.dump(copy.deepcopy(scenes), f, indent=2)
+        
+        scene['caption'] = captions[i]
+    results = shorten_caption(scenes)
+    for i, scene in enumerate(scenes):
+        if results[i] is not None:
+            scene['short_caption'] = results[i]
+    # Save scene caption
+    with open(scene_data_path, 'w') as f:
+        json.dump(copy.deepcopy(scenes), f, indent=2, ensure_ascii=False)
     
     # 创建评审委员会成员
     if method == 'agent':
@@ -148,9 +154,9 @@ async def get_score(video_path, method='agent', threshold=30.0, min_scene_length
 
         agents = [critic, cultural_expert, audience_rep]
 
-        commission = MovieReviewCommission(agents=agents, video_path=video_path, save_path=os.path.join(output_dir, os.path.basename(video_path).split('.')[0], "agent_log"), scenes=scenes)
+        commission = MovieReviewCommission(agents=agents, video_path=video_path, save_path=os.path.join(output_dir, "agent_log"), scenes=scenes)
     elif method == 'human':
-        commission = HumanAnnotator(name="wangshu", save_dir=os.path.join(output_dir, os.path.basename(video_path).split('.')[0], "human_annotations"), port=8001)
+        commission = HumanAnnotator(name="wangshu", save_dir=os.path.join(output_dir, "human_annotations"), port=8001)
     # Load question template
     answer_path = os.path.join(output_dir, f"{commission}_{os.path.basename(video_path).split('.')[0]}.json")
     question_path = "/data/wangshu/wangshu_code/ISG/ISV_eval/questions.json"
