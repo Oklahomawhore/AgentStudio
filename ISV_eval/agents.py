@@ -255,7 +255,7 @@ class BaseAgent:
                     self._call_dashscope,
                     messages
                 )
-            except:
+            except Exception as e:
                 # use local
                 # openai_api_key = "EMPTY"
                 # openai_api_base = "http://localhost:8000/v1"
@@ -272,7 +272,7 @@ class BaseAgent:
                 # reply = chat_response
                 print("-" * 40)
                 print("-" * 40)
-                print(f"DashScope API failed, try using local model..")
+                print(f"DashScope API failed, {e}, try using local model..")
                 print(f"messages: {raw_messages}")
                 print("-" * 40)
                 reply = inference(prompt=raw_messages)

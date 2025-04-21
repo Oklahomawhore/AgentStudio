@@ -9,7 +9,7 @@ import glob
 from typing import List, Tuple, Dict, Any
 
 import torch
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
+from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor, AutoModelForImageTextToText
 from qwen_vl_utils import process_vision_info
 import numpy as np
 from PIL import Image
@@ -28,14 +28,14 @@ def load_model_and_processor():
     global model, processor
     if model is None or processor is None:
         print("Loading Qwen2.5-VL model and processor...")
-        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+        model = AutoModelForImageTextToText.from_pretrained(
             "Qwen/Qwen2.5-VL-32B-Instruct-AWQ",
             torch_dtype=torch.float16,
             attn_implementation="flash_attention_2",
             device_map="auto",
         )
-        processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct-AWQ", max_pixels=8 * 28 * 28)
-        print("Model and processor loaded successfully.")
+        processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-32B-Instruct-AWQ")
+        print(f"Model and processor loaded successfully. Model on device {model.device}")
     return model, processor
 
 from util import prepare_message_for_vllm
@@ -89,19 +89,24 @@ def inference(video_path=None, prompt: List[Dict] | str=None, max_new_tokens=204
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": [
                     {"type": "text", "text": prompt},
-                    {"video": f"file://{video_path}", "min_pixels" : 1 * 28 * 28, "max_pixels": 3 * 28 * 28, "fps" : 1},
+                    {"type": "video", "video": f"file://{video_path}", "max_pixels": 8 * 28 * 28},
                 ]
             },
         ]
     else:
         messages = prompt
+        for message in messages:
+            for content in message['content']:
+                if isinstance(content, dict) and content['type'] == 'video':
+                    content['max_pixels'] = 32 * 28 * 28
+        
     text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     image_inputs, video_inputs, video_kwargs = process_vision_info([messages], return_video_kwargs=True)
     fps_inputs = video_kwargs['fps']
     print("video input:", video_inputs[0].shape)
     num_frames, _, resized_height, resized_width = video_inputs[0].shape
     print("num of video tokens:", int(num_frames / 2 * resized_height / 28 * resized_width / 28))
-    inputs = processor(text=[text], images=image_inputs, videos=video_inputs, fps=fps_inputs, padding=True, return_tensors="pt")
+    inputs = processor(text=[text], images=image_inputs, videos=video_inputs, padding=True, return_tensors="pt", **video_kwargs)
     inputs = inputs.to('cuda')
 
     output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens)
@@ -206,5 +211,5 @@ def shorten_caption(scenes: List[str]):
     return results
 if __name__ == '__main__':
     prompt= "Localize a series of activity events in the video, output the start and end timestamp for each event, and describe each event with sentences. Provide the result in json format with 'mm:ss.ff' format for time depiction."
-    response = inference_local("/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning_run2/Task_0002/final_video_919c4168-d0c1-4404-a931-edfa1981ce1a.mp4", prompt=prompt) # 这里的时间戳是视频的时间戳
+    response = inference("/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning_run2/Task_0002/final_video_919c4168-d0c1-4404-a931-edfa1981ce1a.mp4", prompt=prompt) # 这里的时间戳是视频的时间戳
     print("response:", response)

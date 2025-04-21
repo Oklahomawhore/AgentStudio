@@ -219,10 +219,104 @@ def generate_image2video():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/generate_image', methods=['POST'])
-def generate_image():
-    # Vidu可能没有文本到图像的API，但如果有，可以在这里实现
-    return jsonify({'error': 'Image generation not supported by Vidu API'}), 501
+@app.route('/generate_reference2video', methods=['POST'])
+def generate_reference2video():
+    try:
+        # Extract input data from the request
+        data = request.get_json()
+
+        if not data or 'image' not in data or 'prompt' not in data:
+            return jsonify({'error': 'Invalid input. Expected JSON with "reference_video" and "prompt" keys.'}), 400
+        elif len(data['image']) not in [1,2,3]:
+            return jsonify({'error': 'Invalid input. Expected JSON with "image" key as a list of 1, 2 or 3 images.'}), 400
+
+        encoded_images = []
+        for i in range(len(data['image'])):
+            if not os.path.isfile(data["image"][i]):
+                return jsonify({'error': f'Image file {data["image"][i]} not found'}), 400
+            
+            # preprocess image file (resize, smaller)
+            try:
+                if os.path.isfile(data["image"][i]):
+                    image_path =  add_fix_to_filename(data["image"][i], "processed")
+                    process_image(data["image"][i], image_path)
+                    
+                else:
+                    return jsonify({'error': 'Image file not found'}), 400
+            except Exception as e:
+                return jsonify({'error': f"Error in processing image: {e}"}), 500
+
+            # Read the file in binary mode and encode it to Base64
+            with open(image_path, "rb") as image_file:
+                base64_encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
+            encoded_images.append(f"data:image/jpeg;base64,{base64_encoded_image}")
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {os.getenv("VIDU_API_KEY")}',
+        }
+
+        # Prepare the data to send in the POST request
+        payload = {
+            "model" : "vidu2.0",
+            "prompt": data['prompt'],
+            "images" : base64_encoded_image,
+            "resolution": data.get('resolution', '360p'),
+            "duration": data.get('duration', 4),
+            "seed" : 2025,
+            "aspect_ratio" : data.get('aspect_ratio', '16:9'),
+        }
+
+        # POST request to generate the video using reference-to-video API
+        reference2video_url = 'https://api.vidu.cn/ent/v2/reference2video'
+        response = requests.post(reference2video_url, json=payload, headers=headers)
+        response_data = response.json()
+
+        # Check if the request was successful
+        if response.status_code == 200:
+            task_id = response_data.get('task_id')
+            if not task_id:
+                return jsonify({'error': 'Failed to get task_id for reference-to-video generation.'}), 500
+                
+            # Check status periodically
+            video_url = None
+            retry_count = 0
+            max_retries = 20
+            while retry_count < max_retries:
+                status_response = requests.get(f"{TEXT_STATUS_URL}{task_id}", headers=headers)
+                status_data = status_response.json()
+                
+                if status_response.status_code == 200:
+                    status = status_data.get('status')
+                    if status == 'success':
+                        video_url = status_data.get('createions')[0].get('url')
+                        break
+                    elif status == 'failed':
+                        break
+                    elif status =='queueing':
+                        print("Task is still in queue, waiting for processing...")
+                    elif status == 'processing':
+                        print("Task is being processed...")
+                
+                # Wait before checking again
+                retry_count += 1
+                time.sleep(30)  # Check every 30 seconds
+
+            if video_url:
+                # Download video and save
+                seconds_per_screenshot = data.get('seconds_per_screenshot', 1)
+                video_path, screenshots = download_video_and_save_as_mp4(video_url, seconds_per_screenshot=seconds_per_screenshot)
+
+                if video_path:
+                    return jsonify({'video_file': video_path, 'screenshots': screenshots}), 200
+                else:
+                    return jsonify({'error': 'Failed to download or encode the video.'}), 500
+            else:
+                return jsonify({'error': 'Task did not succeed or video not available.'}), 500
+        else:
+            return jsonify({'error': f"API error: {response.status_code} - {response_data.get('message', 'Unknown error')}"}), response.status_code
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
