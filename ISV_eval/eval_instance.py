@@ -174,7 +174,7 @@ class ResponseEvaluator:
                     reprompt = f"Based on the following response, is the answer 'Yes' or 'No'?\nResponse: {answer}\nAnswer only with 'Yes' or 'No'."
                     std_answer = self.reprompt_llm(reprompt)
                     std_answer = AnswerProcessor.standardize_yes_no_answer(std_answer)
-            
+            print(f"anwer for {reference['question']} is {reference['answer'].lower()}, model response {std_answer.lower()}")
             return std_answer.lower() == reference["answer"].lower(), std_answer
             
         elif question_type == "multiple_choice":
@@ -189,7 +189,7 @@ class ResponseEvaluator:
                     reprompt = f"Based on the following response, which option (A, B, C, or D) is selected?\nOptions: {options_str}\nResponse: {answer}\nAnswer only with the letter (A, B, C, or D)."
                     std_answer = self.reprompt_llm(reprompt)
                     std_answer = AnswerProcessor.standardize_multiple_choice_answer(std_answer)
-            
+            print(f"anwer for {reference['question']} is {reference['answer']}, model response {std_answer}")
             return std_answer == reference["answer"], std_answer
             
         elif question_type == "fill_in_blank":
@@ -203,6 +203,7 @@ class ResponseEvaluator:
             
             # 简单字符串比较
             exact_match = std_answer.lower() == reference["answer"].lower()
+            print(f"anwer for {reference['question']} is {reference['answer'].lower()}, model response {std_answer.lower()}")
             return exact_match, std_answer
         
         return False, answer
@@ -390,6 +391,7 @@ def main():
     with open(args.prompt_path, "r") as f:
         prompts = json.load(f)
     total = 0.0
+    agg_scores = []
     for task in prompts:
         task_id = task["id"]
         if os.path.exists(os.path.join(args.results_dir, f"Task_{str(task_id)}", "report.json")):
@@ -398,7 +400,9 @@ def main():
                 report = json.load(f)
             print(report)
             total += report["scores"]["aggregate"]
+            agg_scores.append(report["scores"]["aggregate"])
             continue
+        print(f"Evaluating for {os.path.join(args.results_dir, f'Task_{task_id}',  'MovieReviewCommission_*.json')}")
         results_path = glob.glob(os.path.join(args.results_dir, f"Task_{task_id}",  "MovieReviewCommission_*.json"))[0]
         # 初始化评估器
         evaluator = ResponseEvaluator(results_path, args.questions_dir, reprompt_llm=reprompt_llm)
@@ -416,12 +420,21 @@ def main():
 
         # 生成并保存报告(如果指定了输出路径)
         total += scores['aggregate']
+        agg_scores.append(scores['aggregate'])
         report = evaluator.generate_report()
         
         with open(os.path.join(args.results_dir, f"Task_{str(task_id)}", "report.json"), 'w', encoding='utf-8') as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
-        print(f"\nEvaluation report saved to: {os.path.join(args.results_dir, f"Task_{str(task_id)}", "report.json")}")
+        print(f"\nEvaluation report saved to: {os.path.join(args.results_dir, f'Task_{str(task_id)}', 'report.json')}")
+    
+    print(">>> Average score across all tasks: ", np.mean(agg_scores))
+    print(">>> Std deviation: ", np.std(agg_scores))
 
-    print(">>> Average score across all tasks: ", total / len(prompts))
+    task_report = {
+        "task_average" : f'{np.mean(agg_scores):.4f}',
+        "task_std" : f'{np.std(agg_scores):.4f}',
+    }
+    with open(os.path.join(args.results_dir, "task_report.json"), 'w', encoding='utf-8') as f:
+        json.dump(task_report, f, indent=2)
 if __name__ == "__main__":
     main()

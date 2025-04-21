@@ -34,7 +34,7 @@ def load_model_and_processor():
             attn_implementation="flash_attention_2",
             device_map="auto",
         )
-        processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct-AWQ", min_pixels=16 * 28 * 28, max_pixels=1280 * 28 * 28)
+        processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct-AWQ", max_pixels=8 * 28 * 28)
         print("Model and processor loaded successfully.")
     return model, processor
 

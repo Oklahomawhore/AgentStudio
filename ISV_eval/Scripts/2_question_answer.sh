@@ -7,17 +7,23 @@ DATASETS=(
           "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/YouCook2/stories.json")
 
 # Initialize RESULTS_DIR array to match DATASETS length
+# RESULTS_DIR=(
+#     "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/Vidu-1.5-GPT-story"
+#     "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/Vidu-1.5-NovelConditionedVGen"
+#     "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/Vidu-1.5-YouCook2"
+# )
+
 RESULTS_DIR=(
-    "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/Vidu-1.5-GPT-story"
-    "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/Vidu-1.5-NovelConditionedVGen"
-    "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/Vidu-1.5-YouCook2"
+    "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_GPT-story"
+    "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning"
+    "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_YouCook2"
 )
 
 # Define evaluation results output directory
 EVAL_RESULTS_DIR="/data/wangshu/wangshu_code/ISG/ISV_eval/eval_results"
 
 # Define model name
-MODEL_NAME="Vidu-1.5"
+MODEL_NAME="ISG_agent"
 
 # Process each dataset
 for i in "${!DATASETS[@]}"; do
