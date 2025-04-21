@@ -29,7 +29,7 @@ def load_model_and_processor():
     if model is None or processor is None:
         print("Loading Qwen2.5-VL model and processor...")
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            "Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+            "Qwen/Qwen2.5-VL-32B-Instruct-AWQ",
             torch_dtype=torch.float16,
             attn_implementation="flash_attention_2",
             device_map="auto",
@@ -81,17 +81,20 @@ def get_video_frames(video_path, num_frames=128, cache_dir='tmp'):
     
     return video_file_path, frames, timestamps
 
-def inference(video_path, prompt, max_new_tokens=2048, total_pixels=20480 * 28 * 28, min_pixels=16 * 28 * 28):
+def inference(video_path=None, prompt: List[Dict] | str=None, max_new_tokens=2048, total_pixels=20480 * 28 * 28, min_pixels=16 * 28 * 28):
     global model, processor
     model, processor = load_model_and_processor()
-    messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": [
-                {"type": "text", "text": prompt},
-                {"video": f"file://{video_path}", "min_pixels" : 1 * 28 * 28, "max_pixels": 3 * 28 * 28, "fps" : 1},
-            ]
-        },
-    ]
+    if isinstance(prompt, str):
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"video": f"file://{video_path}", "min_pixels" : 1 * 28 * 28, "max_pixels": 3 * 28 * 28, "fps" : 1},
+                ]
+            },
+        ]
+    else:
+        messages = prompt
     text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     image_inputs, video_inputs, video_kwargs = process_vision_info([messages], return_video_kwargs=True)
     fps_inputs = video_kwargs['fps']
@@ -106,6 +109,32 @@ def inference(video_path, prompt, max_new_tokens=2048, total_pixels=20480 * 28 *
     print(f"shape: {len(generated_ids)} {generated_ids}")
     output_text = processor.batch_decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
     return output_text[0]
+def inference_local(video_path, prompt):
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"video": f"file://{video_path}"},
+            ]
+        },
+    ]
+    # use local
+    openai_api_key = "EMPTY"
+    openai_api_base = "http://localhost:8000/v1"
+
+
+    client = OpenAI(
+        api_key=openai_api_key,
+        base_url=openai_api_base,
+    )
+
+    chat_response = client.chat.completions.create(
+        model="Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+        messages=messages
+    )
+    reply = chat_response
+    return reply.choices[0].message.content
+
 
 def get_video_length(video_path):
     clip = VideoFileClip(video_path)
@@ -177,5 +206,5 @@ def shorten_caption(scenes: List[str]):
     return results
 if __name__ == '__main__':
     prompt= "Localize a series of activity events in the video, output the start and end timestamp for each event, and describe each event with sentences. Provide the result in json format with 'mm:ss.ff' format for time depiction."
-    response = inference("/data/wangshu/wangshu_code/ISG/ISV_eval/inception_part1.mp4", prompt=prompt, total_pixels=1280 * 28 * 28) # 这里的时间戳是视频的时间戳
+    response = inference_local("/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning_run2/Task_0002/final_video_919c4168-d0c1-4404-a931-edfa1981ce1a.mp4", prompt=prompt) # 这里的时间戳是视频的时间戳
     print("response:", response)

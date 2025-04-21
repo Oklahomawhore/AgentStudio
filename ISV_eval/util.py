@@ -24,6 +24,11 @@ make_dir_lock = Lock()
 
 batch_client = OpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"), base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
 
+class QUESTION_TEMPLATE:
+    FILL_IN_BLANK = "Look at the video, fill in the blan in this question, if has multiple blanks, separate answer by semi-colon: {}"
+    YES_NO = "Look at the video, answer this question with yes or no: {}"
+    MULTIPLE_CHOICE = "Look at the video, answer this question with A,B,C,D: Q: {} options: {}"
+    
 def format_time_to_hhmmss(seconds):
     """
     将秒数转换为 HH:mm:ss 格式

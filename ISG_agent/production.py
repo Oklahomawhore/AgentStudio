@@ -26,6 +26,8 @@ from audiocraft.data.audio import audio_write
 dotenv.load_dotenv()
 
 tts_lock = Lock()
+chat = ChatTTS.Chat()
+chat.load(compile=False)
 # In this file, we decide which genration backend to call and
 # hide the details of generation logic from the main code
 
@@ -88,7 +90,7 @@ def gen_video(prompt, image, i2v=False):
         save_to_disk((video_list, screenshot_list), file_path)
 
     except Exception as e:
-        print(f"Error in generating video: {str(e)}")
+        print(f"Error in generating video: {str(e)} prompt: {prompt} image: {image}")
     
     return video_list, screenshot_list
 
@@ -233,9 +235,9 @@ def extract_conversation(prompt, speaker):
     if prompt != '' and speaker not in prompt:
         # Split on the first colon when speaker is not explicitly in the prompt
         try:
-            conversation = prompt.split("：", 1)[1]
+            conversation = prompt.split("：", 1)[-1]
         except IndexError as e:
-            conversation = prompt.split(':', 1)[1]
+            conversation = prompt.split(':', 1)[-1]
         finally:
             print(prompt)
     else:
@@ -262,6 +264,7 @@ def gen_tts(prompt, voice_direction, speaker_embeddings_cache_dir="speaker_embed
         return None
     assert isinstance(prompt, str), "Prompt must be a string"
     assert isinstance(voice_direction, dict), "Voice direction must be a dictionary"
+    global chat
 
     combined_file = f"audio/{prompt.replace('/', '').replace('：', '').replace(' ', '')}.wav"
 
@@ -269,80 +272,72 @@ def gen_tts(prompt, voice_direction, speaker_embeddings_cache_dir="speaker_embed
         print(f"Combined audio for prompt {prompt} already exists")
         return combined_file
 
-    with tts_lock:
+    
         # Extract all speaker-conversation pairs
 
-        chat = ChatTTS.Chat()
-        chat.load(compile=False)  # Set to True for better performance
+    os.makedirs(speaker_embeddings_cache_dir, exist_ok=True)
+    os.makedirs("audio", exist_ok=True)
 
-        os.makedirs(speaker_embeddings_cache_dir, exist_ok=True)
-        os.makedirs("audio", exist_ok=True)
+    saved_wavs = []
 
-        saved_wavs = []
-
-        for speaker, description in voice_direction.items():
-            
-            conversation = extract_conversation(prompt, speaker)
-
-            print(f"[TTS] {speaker} : {conversation}")
-            # Generate hash for the speaker embedding
-            speaker_hash = generate_hash(speaker)
-            speaker_file_path = os.path.join(speaker_embeddings_cache_dir, f"{speaker_hash}.pkl")
-
-            # Load or sample speaker embedding
-            if os.path.exists(speaker_file_path):
-                with open(speaker_file_path, 'rb') as f:
-                    rand_spk = pickle.load(f)
-                print(f"Recovered speaker for {speaker}")
-            else:
-                rand_spk = chat.sample_random_speaker()
-                print(f"Sampled new speaker for {speaker}")
-                with open(speaker_file_path, 'wb') as f:
-                    pickle.dump(rand_spk, f)
-
-            # Set parameters for TTS inference
-            params_infer_code = ChatTTS.Chat.InferCodeParams(
-                spk_emb=rand_spk,  # Use the selected speaker embedding
-                temperature=0.3,    # Custom temperature
-                top_P=0.7,          # Top P decode
-                top_K=20,           # Top K decode
-            )
-
-            params_refine_text = ChatTTS.Chat.RefineTextParams(
-                prompt='[oral_2][laugh_0][break_6]',  # Control speech attributes here
-            )
-
-            # Generate the waveform
+    for speaker, description in voice_direction.items():
+        
+        conversation = extract_conversation(prompt, speaker)
+        print(f"[TTS] {speaker} : {conversation}")
+        if len(conversation) == 0:
+            conversation = prompt
+        
+        # Generate hash for the speaker embedding
+        speaker_hash = generate_hash(speaker)
+        speaker_file_path = os.path.join(speaker_embeddings_cache_dir, f"{speaker_hash}.pkl")
+        # Load or sample speaker embedding
+        if os.path.exists(speaker_file_path):
+            with open(speaker_file_path, 'rb') as f:
+                rand_spk = pickle.load(f)
+            print(f"Recovered speaker for {speaker}")
+        else:
+            rand_spk = chat.sample_random_speaker()
+            print(f"Sampled new speaker for {speaker}")
+            with open(speaker_file_path, 'wb') as f:
+                pickle.dump(rand_spk, f)
+        # Set parameters for TTS inference
+        params_infer_code = ChatTTS.Chat.InferCodeParams(
+            spk_emb=rand_spk,  # Use the selected speaker embedding
+            temperature=0.3,    # Custom temperature
+            top_P=0.7,          # Top P decode
+            top_K=20,           # Top K decode
+        )
+        params_refine_text = ChatTTS.Chat.RefineTextParams(
+            prompt='[oral_2][laugh_0][break_6]',  # Control speech attributes here
+        )
+        # Generate the waveform
+        with tts_lock:
+            print(f"Infering {conversation}...")
             wavs = chat.infer(
                 conversation,  # Use the extracted text for the speaker
                 params_refine_text=params_refine_text,
                 params_infer_code=params_infer_code,
             )
-
-            # Save individual WAV file
-            file_name = f"audio/{speaker}_{conversation[:10].replace('/', '').replace(' ', '')}.wav"
-            try:
-                torchaudio.save(file_name, torch.from_numpy(wavs[0]).unsqueeze(0), 24000)
-            except Exception as e:
-                torchaudio.save(file_name, torch.from_numpy(wavs[0]), 24000)
-
-            saved_wavs.append(file_name)
-
-        # Concatenate all WAV files into one
-        
-        combined_audio = None
-        pause = AudioSegment.silent(duration=1000)  # 1-second silent audio segment
-        for wav_file in saved_wavs:
-            audio_segment = AudioSegment.from_wav(wav_file)
-            combined_audio = (
-                audio_segment if combined_audio is None else combined_audio + pause + audio_segment
-            )
-
-        
-        combined_audio.export(combined_file, format="wav")
-        print(f"Combined audio saved to {combined_file}")
-
-        return combined_file
+        # Save individual WAV file
+        file_name = f"audio/{speaker.replace('/', '').replace(' ', '_')}_{conversation[:10].replace('/', '').replace(' ', '_')}.wav"
+        try:
+            torchaudio.save(file_name, torch.from_numpy(wavs[0]).unsqueeze(0), 24000)
+        except Exception as e:
+            torchaudio.save(file_name, torch.from_numpy(wavs[0]), 24000)
+        saved_wavs.append(file_name)
+    
+    # Concatenate all WAV files into one
+    combined_audio = None
+    pause = AudioSegment.silent(duration=1000)  # 1-second silent audio segment
+    for wav_file in saved_wavs:
+        audio_segment = AudioSegment.from_wav(wav_file)
+        combined_audio = (
+            audio_segment if combined_audio is None else combined_audio + pause + audio_segment
+        )
+    
+    combined_audio.export(combined_file, format="wav")
+    print(f"Combined audio saved to {combined_file}")
+    return combined_file
 
 def concat_video(video_clips: List[VideoFileClip], music_path, tts_paths, task_dir):
     """

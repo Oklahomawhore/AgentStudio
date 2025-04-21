@@ -6,8 +6,36 @@ from PIL import Image
 import base64 
 from typing import Tuple, List
 from threading import Lock
+import re
 
 make_dir_lock = Lock()
+
+def replace_characters_in_content(content, characters):
+    """
+    Replace all character references in the content with their descriptions.
+    Supports both <#character_name#> and <character_name> patterns.
+
+    Args:
+        content (str): The input string containing character references.
+        characters (dict): A dictionary mapping character names to descriptions.
+
+    Returns:
+        str: The content with character references replaced by descriptions.
+    """
+    # Regex pattern to match <#character_name#> or <character_name>
+    pattern = r"<#(.*?)#>|<(.*?)>"
+
+    character_list = []
+    # Function to replace the matched pattern with the description
+    def replace(match):
+        # Extract the character name from either group
+        character_name = match.group(1) or match.group(2)
+        character_list.append(character_name)
+        # Replace with the description or keep the original pattern if not found
+        return f"{character_name} ({characters.get(character_name, f'<{character_name}>')})"
+
+    # Use re.sub to replace all occurrences of the pattern
+    return re.sub(pattern, replace, content), character_list
 
 # Function to download the generated image and encode it to base64
 def IMGGEN_download_image_and_convert_to_base64(image_url):

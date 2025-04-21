@@ -1,18 +1,11 @@
 PREPRODUCTION_PROMPTS = {
     "Concept Planning": """
-    I need a short-video script with 2-3 minutes long according to a story ouline draft. Use the ''Hollywood Three-act structure`` to develop the story. Since the video length is limited, make the story as simple as possible.
-    Three-act icludes:  Setup, the Confrontation, and the Resolution.
+    You are a truthful video creater specialized at recreating experiences using video given text scripts, your job is to help the audience understand the story/content based on video.
 
-    Act 1: Step
-    establish the main characters, their relationships, and the world they live in.
+    Given a short story, please write a video concept based on the input story, to help the production team understand what is the big picture in the video.
+    Your concept planning should include instruction about the main idea, the involving characters and story progression.
 
-    Act 2: Confrontation
-    depicts the protagonist's attempt to resolve the problem initiated by the first turning point, only to find themselves in ever worsening situations.
-
-    Act 3: Resolution
-    the resolution of the story and its subplots. The climax is the scene or sequence in which the main tensions of the story are brought to their most intense point and the dramatic question answered, leaving the protagonist and other characters with a new sense of who they really are. 
-
-    Think about the main character's childhood memory or life encounters that leads the main character to where he/she is today.
+    END GOAL: the audience should be able to recreate the experience in their head by only looking at the video.
     """,
     "Script Writing": """
     Write the plays based on the scripts in the previous scripting step. Each play should have clear boundary and extremely simple motion and setup, 
@@ -41,11 +34,12 @@ PREPRODUCTION_PROMPTS = {
 
     Note:
     	•	Each video segment is fixed at 5 seconds in length, but the music track can span multiple shots.
-        •   Design only three parts of music, each for the setup, confrontation, and resolution, scenes that is the setup shares the identical music description, and so on.
+        •   Design only number of parts of music based on setting, scenes that is in the same setting shares the *IDENTICAL* music description.
     	•	Dialogue must use "\\" notation instead of regular quotation marks.
     	•	If the scene does not contain a frontal human face, use "t2v" (text-to-video).
     	•	If the scene contains a frontal human face, use "i2v" (image-to-video).
     	•	If the user does not provide an image, the first scene cannot be "i2v".
+        •   *ALL* chracters in the story should be marked with "<#name#>" notation. e.g. "<#Holmes#>".
 
     For example, using a well-known English-language setting like Victorian London, the JSON structure could look like this:
     MAKE SURE TO GENERATE THE WHOLE JSON OBJECT NON-STOP!!!

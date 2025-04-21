@@ -2,7 +2,7 @@ import os
 import json
 from argparse import ArgumentParser
 from Prompt.New_system import PLANNING_PROMPT
-from Prompt.New_planning_i2v import PREPRODUCTION_PROMPTS
+from Prompt.New_planning_video_storytelling import PREPRODUCTION_PROMPTS
 import base64
 from tqdm import tqdm
 import re
@@ -19,6 +19,9 @@ from production import gen_img, generate_all
 from typing import DefaultDict, Dict
 from PIL import Image
 import glob
+
+from util import replace_characters_in_content
+
 
 dotenv.load_dotenv()
 
@@ -449,33 +452,6 @@ def extract_character_from_content(content):
     return matched_characters
 
 
-def replace_characters_in_content(content, characters):
-    """
-    Replace all character references in the content with their descriptions.
-    Supports both <#character_name#> and <character_name> patterns.
-
-    Args:
-        content (str): The input string containing character references.
-        characters (dict): A dictionary mapping character names to descriptions.
-
-    Returns:
-        str: The content with character references replaced by descriptions.
-    """
-    # Regex pattern to match <#character_name#> or <character_name>
-    pattern = r"<#(.*?)#>|<(.*?)>"
-
-    character_list = []
-    # Function to replace the matched pattern with the description
-    def replace(match):
-        # Extract the character name from either group
-        character_name = match.group(1) or match.group(2)
-        character_list.append(character_name)
-        # Replace with the description or keep the original pattern if not found
-        return f"{character_name} ({characters.get(character_name, f'<{character_name}>')})"
-
-    # Use re.sub to replace all occurrences of the pattern
-    return re.sub(pattern, replace, content), character_list
-
 def extract_plan_from_response(response_text, plan_file,characters={}):
     """
     Extracts the first valid JSON object or array from the response text and saves it to a file.
@@ -842,7 +818,7 @@ def generate_storyboard(prompt, character_imgs):
         contents.append({"type": "image_url", "image_url": {"url": img}})
     messages.append({"role": "user", "content": contents})
     completion = OpenAIClient.chat.completions.create(
-                        model='gpt-4o-image',
+                        model='gpt-4o-image-vip',
                         messages=messages,
                     )
     assistant_response = completion.choices[0].message
@@ -1013,6 +989,7 @@ def main():
                         response_format={'type' : 'json'} if step_name == "Detailed Storyboarding" else None,
                         messages=messages,
                         temperature=0.7,
+                        max_tokens=4096
                     )
                     assistant_response = completion.choices[0].message
                     response_text = completion.choices[0].message.content
@@ -1032,6 +1009,7 @@ def main():
                         response_format={'type' : 'json'} if step_name == "Detailed Storyboarding" else None,
                         messages=messages,
                         temperature=0.7,
+                        max_tokens=4096
                     )
                     assistant_response = completion.choices[0].message
                     response_text = completion.choices[0].message.content
@@ -1134,6 +1112,7 @@ if __name__ == "__main__":
     # content = "Generate video:中景 写实 轻微推镜头，逐渐拉近两人。 <杨喀雄>在花园中与<周女>幽会，互相依偎，笑声不断。"
     # print(extract_character_from_content(content))
     # print(replace_characters_in_content(content, characters))
-
-    # rs = generate_storyboard("夜幕降临的寺庙壁画世界，中景镜头，低角度仰拍，画面充满神秘感和奇幻氛围。<#金甲使者#>身披金光闪闪的铠甲，头盔上镶嵌着神秘的符文，在火光的映照下熠熠生辉，他神情威严，目光如炬，带领着一群同样身着铠甲的卫士整齐划一地走来。卫士们手持发光的法器，脚步坚定有力，地面闪烁着奇异的符文，空气中弥漫着淡淡的魔法光芒。远处，低垂的乌云中透出微弱的火光，为场景增添了一丝紧张和压迫感。整个画面色调以冷色调为主，辅以火光的暖色调，形成强烈的视觉对比，突出<#金甲使者#>及其队伍的威严和神秘感。<#老和尚#>在不远处看着这一切", ["/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning/Task_0007/金甲使者.png", "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning/Task_0007/老和尚.png"])
+    # char_imgs = ["/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning/Task_0007/金甲使者.png", "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning/Task_0007/老和尚.png"]
+    # char_imgs = []
+    # rs = generate_storyboard("夜幕降临的寺庙壁画世界，中景镜头，低角度仰拍，画面充满神秘感和奇幻氛围。<#金甲使者#>身披金光闪闪的铠甲，头盔上镶嵌着神秘的符文，在火光的映照下熠熠生辉，他神情威严，目光如炬，带领着一群同样身着铠甲的卫士整齐划一地走来。卫士们手持发光的法器，脚步坚定有力，地面闪烁着奇异的符文，空气中弥漫着淡淡的魔法光芒。远处，低垂的乌云中透出微弱的火光，为场景增添了一丝紧张和压迫感。整个画面色调以冷色调为主，辅以火光的暖色调，形成强烈的视觉对比，突出<#金甲使者#>及其队伍的威严和神秘感。<#老和尚#>在不远处看着这一切", char_imgs)
     # print(rs)

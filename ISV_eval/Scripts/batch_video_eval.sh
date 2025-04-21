@@ -7,6 +7,7 @@ usage() {
     echo "  -i, --input_dir    视频文件的输入目录 (必须)"
     echo "  -o, --output_dir   评估结果的输出目录 (默认: eval_results)"
     echo "  -m, --method       评估方法: agent 或 human (默认: agent)"
+    echo "  -s, --summary      摘要报告文件名 (默认: summary_report.txt)"
     echo "  -h, --help         显示此帮助信息"
     exit 1
 }
@@ -15,6 +16,7 @@ usage() {
 INPUT_DIR=""
 OUTPUT_DIR="eval_results"
 METHOD="agent"
+SUMMARY_FILENAME="summary_report.txt"
 
 # 解析命令行参数
 while [[ "$#" -gt 0 ]]; do
@@ -22,6 +24,7 @@ while [[ "$#" -gt 0 ]]; do
         -i|--input_dir) INPUT_DIR="$2"; shift ;;
         -o|--output_dir) OUTPUT_DIR="$2"; shift ;;
         -m|--method) METHOD="$2"; shift ;;
+        -s|--summary) SUMMARY_FILENAME="$2"; shift ;;
         -h|--help) usage ;;
         *) echo "未知参数: $1"; usage ;;
     esac
@@ -35,7 +38,7 @@ if [ -z "$INPUT_DIR" ]; then
 fi
 
 # 检查输入目录是否存在
-if [ ! -d "$INPUT_DIR" ]; then
+if [ ! -d "$INPUT_DIR" ];then
     echo "错误: 输入目录 '$INPUT_DIR' 不存在"
     exit 1
 fi
@@ -50,7 +53,7 @@ fi
 mkdir -p "$OUTPUT_DIR"
 
 # 创建汇总报告文件
-SUMMARY_FILE="$OUTPUT_DIR/summary_report.txt"
+SUMMARY_FILE="$OUTPUT_DIR/$SUMMARY_FILENAME"
 echo "视频评估汇总报告 - $(date)" > "$SUMMARY_FILE"
 echo "=================================" >> "$SUMMARY_FILE"
 echo "输入目录: $INPUT_DIR" >> "$SUMMARY_FILE"

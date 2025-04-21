@@ -107,9 +107,14 @@ class MovieReviewCommission:
             if len(b_question) > 0:
                 answers = await agent._respond_to_user_batch([item[1] for item in b_question])
                 for i, q in enumerate(b_question):
-                    if answers[i] is not None:
-                        self.questions_asked[q[0]].append({agent.characteristics.name: answers[i]})
-                        self._save_questions_asked()
+                    try:
+                        if answers[i] is not None:
+                            self.questions_asked[q[0]].append({agent.characteristics.name: answers[i]})
+                            self._save_questions_asked()
+                    except IndexError as e:
+                        print(f"Error: {i} out of bound for list of length {len(answers)}")
+                        print(b_question[-1])
+                        print(answers[-1])
                 questionnaire_results[agent.characteristics.name] = answers
         return questionnaire_results
     def get_questionnaire_results(self) -> Dict[str, Any]:

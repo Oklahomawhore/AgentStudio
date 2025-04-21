@@ -11,10 +11,16 @@ import threading
 import json
 from pathlib import Path
 import time
+import uuid
+import oss2
+import copy
+from oss2.credentials import EnvironmentVariableCredentialsProvider
 
 from qwen_vl_utils import process_vision_info
 from util import prepare_message_for_vllm
 from dashscope.utils.oss_utils import preprocess_message_element
+
+from vlm_score import inference
 
 # 添加一个线程本地存储，用于存储每个线程的客户端实例
 thread_local = threading.local()
@@ -76,7 +82,9 @@ class BaseAgent:
         model: str = "gpt-4o", 
         characteristics: Optional[Characteristics] = None,
         memory: Optional[Memory] = None,
-        max_workers: int = 1  # 添加最大工作线程数参数
+        max_workers: int = 1,  # 添加最大工作线程数参数
+        save_dir: str = None,
+        seed=0
     ):
         """
         初始化基础智能体
@@ -91,6 +99,7 @@ class BaseAgent:
         # 初始化OpenAI客户端
         self.api_key = api_key or os.environ.get("KLING_API_KEY")
         self.base_url = os.environ.get("OPENAI_BASE_URL")
+        self.seed = seed
         if not self.api_key:
             raise ValueError("OpenAI API密钥未提供，请通过参数传入或设置OPENAI_API_KEY环境变量")
         
@@ -107,6 +116,8 @@ class BaseAgent:
         # 添加线程池
         self.max_workers = max_workers
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+
+        self.save_dir = save_dir
         
         # 内存锁，保护共享资源
         self.memory_lock = threading.RLock()
@@ -143,11 +154,36 @@ class BaseAgent:
             for elem in content:
                 if not isinstance(elem,
                                   (int, float, bool, str, bytes, bytearray)):
-                    is_upload = preprocess_message_element(
-                        model, elem, api_key)
-                    if is_upload and not has_upload:
-                        has_upload = True
-        return has_upload
+                    for key, content in elem.items():
+                        if key in ['image', 'video', 'audio', 'text']:
+                            contents = content if isinstance(content, list) else [content]
+                            for i, content in enumerate(contents):
+                                if not content.startswith('http') and os.path.isfile(content):
+                                    #upload to oss
+                                    # 从环境变量中获取访问凭证。运行本代码示例之前，请确保已设置环境变量OSS_ACCESS_KEY_ID和OSS_ACCESS_KEY_SECRET。
+                                    auth = oss2.ProviderAuthV4(EnvironmentVariableCredentialsProvider())
+
+                                    # 填写Bucket所在地域对应的Endpoint。以华东1（杭州）为例，Endpoint填写为https://oss-cn-hangzhou.aliyuncs.com。
+                                    endpoint = "https://oss-cn-shanghai.aliyuncs.com"
+
+                                    # 填写Endpoint对应的Region信息，例如cn-hangzhou。注意，v4签名下，必须填写该参数
+                                    region = "cn-shanghai"
+                                    # 填写Bucket名称，例如examplebucket。
+                                    bucketName = "video-storage-6999"
+                                    # 创建Bucket实例，指定存储空间的名称和Region信息。
+                                    bucket = oss2.Bucket(auth, endpoint, bucketName, region=region)
+
+                                    # 本地文件的完整路径
+                                    local_file_path = content  
+
+                                    # 填写Object完整路径，完整路径中不能包含Bucket名称。例如exampleobject.txt。
+                                    objectName = os.path.basename(local_file_path)
+
+                                    # 使用put_object_from_file方法将本地文件上传至OSS
+                                    bucket.put_object_from_file(objectName, local_file_path)
+
+                                    elem[key] = bucket.sign_url('GET', objectName, 2 * 60 * 60)  # 2小时有效期
+
 
     def _prepare_messages(self, recent_message_count: int = 10) -> List[Dict[str, str]]:
         """准备发送给API的消息列表"""
@@ -204,24 +240,49 @@ class BaseAgent:
             messages = [{"role": "system", "content": self._generate_system_prompt()},
                        {"role": "user", "content": message}]
         
-        vllm_messages, fps = prepare_message_for_vllm(messages)
-        
+        # vllm_messages, fps = prepare_message_for_vllm(messages)
+        raw_messages = copy.deepcopy(messages)
+
         # 使用线程池处理API调用
         loop = asyncio.get_running_loop()
         
         if 'qwen' in self.model.lower():
             # 使用线程池执行DashScope调用
-            reply = await loop.run_in_executor(
-                self.executor,
-                self._call_dashscope,
-                messages
-            )
+            try:
+                uploaded = BaseAgent._preprocess_messages(self.model, messages, os.getenv("DASHSCOPE_API_KEY"))
+                reply = await loop.run_in_executor(
+                    self.executor,
+                    self._call_dashscope,
+                    messages
+                )
+            except:
+                # use local
+                # openai_api_key = "EMPTY"
+                # openai_api_base = "http://localhost:8000/v1"
+
+                # client = OpenAI(
+                #     api_key=openai_api_key,
+                #     base_url=openai_api_base,
+                # )
+
+                # chat_response = client.chat.completions.create(
+                #     model="Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+                #     messages=messages
+                # )
+                # reply = chat_response
+                print("-" * 40)
+                print("-" * 40)
+                print(f"DashScope API failed, try using local model..")
+                print(f"messages: {raw_messages}")
+                print("-" * 40)
+                reply = inference(prompt=raw_messages)
+                
         else:
             # 使用线程池执行OpenAI调用
             reply = await loop.run_in_executor(
                 self.executor,
                 self._call_openai,
-                vllm_messages
+                messages
             )
         
         # 记录智能体回复
@@ -229,7 +290,7 @@ class BaseAgent:
             self.memory.add_conversation("assistant", reply)
         
         # 返回回复文本
-        return reply.choices[0].message.content[0]["text"]
+        return reply if isinstance(reply, str) else reply.choices[0].message.content[0]["text"]
     
     
     def upload_file(self, file_path):
@@ -281,16 +342,21 @@ class BaseAgent:
             "body" : {
                 "model": self.model,
                 "messages": messages,
+                "seed" : self.seed
             }
         }
         
     async def _respond_to_user_batch(self, contents: List[List[Dict]], include_history: bool = False) -> List[str]:
         # prepare input jsonl
         assert include_history == False, "batch mode does not support include_history"
-
-        input_file = os.path.join(os.path.dirname(__file__), f"input_{str(self)}.jsonl")
-        output_file = os.path.join(os.path.dirname(__file__), f"output_{str(self)}.jsonl")
-        error_file = os.path.join(os.path.dirname(__file__), f"error_{str(self)}.jsonl")
+        if self.save_dir:
+            input_file = os.path.join(self.save_dir, f"input_{str(self)}_{uuid.uuid4()}.jsonl")
+            output_file = os.path.join(self.save_dir, f"output_{str(self)}_{uuid.uuid4()}.jsonl")
+            error_file = os.path.join(self.save_dir, f"error_{str(self)}_{uuid.uuid4()}.jsonl")
+        else:
+            input_file = os.path.join(os.path.dirname(__file__), f"input_{str(self)}_{uuid.uuid4()}.jsonl")
+            output_file = os.path.join(os.path.dirname(__file__), f"output_{str(self)}_{uuid.uuid4()}.jsonl")
+            error_file = os.path.join(os.path.dirname(__file__), f"error_{str(self)}_{uuid.uuid4()}.jsonl")
 
         if os.path.exists(output_file):
             results = []
@@ -380,7 +446,8 @@ class BaseAgent:
         response = dashscope.MultiModalConversation.call(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             model='qwen2.5-vl-32b-instruct',
-            messages=messages
+            messages=messages,
+            seed=self.seed
         )
         if response.status_code == HTTPStatus.OK:
             return response.output
@@ -393,7 +460,8 @@ class BaseAgent:
         client = self._get_thread_client()
         response = client.chat.completions.create(
             model=self.model,
-            messages=messages
+            messages=messages,
+            seed=self.seed
         )
         return response
     
@@ -562,7 +630,8 @@ class AudienceAgent(BaseAgent):
             api_key=api_key, 
             model=model,
             characteristics=kwargs.get('characteristics', audience_characteristics),
-            memory=kwargs.get('memory', None)
+            memory=kwargs.get('memory', None),
+            **kwargs
         )
         
         # 添加观众代表特有的属性
@@ -697,7 +766,8 @@ class CriticAgent(BaseAgent):
             api_key=api_key, 
             model=model,
             characteristics=kwargs.get('characteristics', critic_characteristics),
-            memory=kwargs.get('memory', None)
+            memory=kwargs.get('memory', None),
+            **kwargs
         )
         
         # 添加专业影评人特有的属性
@@ -833,7 +903,8 @@ class CulturalExpertAgent(BaseAgent):
             api_key=api_key, 
             model=model,
             characteristics=kwargs.get('characteristics', expert_characteristics),
-            memory=kwargs.get('memory', None)
+            memory=kwargs.get('memory', None),
+            **kwargs
         )
         
         # 添加文化专家特有的属性
