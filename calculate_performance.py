@@ -1,6 +1,7 @@
 import json
 import argparse
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Analyze data from input file')
     parser.add_argument('--input_file', type=str, required=True)

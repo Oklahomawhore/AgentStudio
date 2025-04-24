@@ -12,6 +12,7 @@ from PIL import Image
 import io
 import os
 
+
 def convert_numpy(obj):
     if isinstance(obj, np.integer):
         return int(obj)
