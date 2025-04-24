@@ -1,10 +1,12 @@
 #!/bin/bash
 
 # Define datasets as in previous scripts
-DATASETS=("/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/CVSV/stories.json" 
-          "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/GPT-story/stories.json" 
-          "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json" 
-          "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/YouCook2/stories.json")
+DATASETS=(
+        "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/CVSV/stories.json" 
+        "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/GPT-story/stories.json" 
+        "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json" 
+        "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/YouCook2/stories.json"
+          )
 
 # Initialize RESULTS_DIR array to match DATASETS length
 # RESULTS_DIR=(
@@ -16,7 +18,7 @@ DATASETS=("/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/CVSV/stories.json"
 
 # Define evaluation results output directory
 EVAL_RESULTS_DIR="/data/wangshu/wangshu_code/ISG/ISV_eval/eval_results"
-MODEL_NAME="ISG_agent"
+MODEL_NAME="Kling-1.6"
 
 # Process each dataset
 for i in "${!DATASETS[@]}"; do

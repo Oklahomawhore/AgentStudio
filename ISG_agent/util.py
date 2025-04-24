@@ -7,6 +7,13 @@ import base64
 from typing import Tuple, List
 from threading import Lock
 import re
+import dotenv
+from urllib.parse import urlparse
+import time
+import uuid
+import hashlib, pickle
+
+dotenv.load_dotenv()
 
 make_dir_lock = Lock()
 
@@ -30,7 +37,8 @@ def replace_characters_in_content(content, characters):
     def replace(match):
         # Extract the character name from either group
         character_name = match.group(1) or match.group(2)
-        character_list.append(character_name)
+        if character_name in characters and character_name not in character_list:
+            character_list.append(character_name)
         # Replace with the description or keep the original pattern if not found
         return f"{character_name} ({characters.get(character_name, f'<{character_name}>')})"
 
@@ -78,7 +86,10 @@ def download_video(video_url, file_name=None, save_directory="videos") -> str:
         response.raise_for_status()
 
         # Define the full file path
-        video_path = os.path.join(save_directory, file_name if file_name is not None else video_url.split("/")[-1].split('?')[0])
+        
+        url_filename = "video_" + str(int(time.time())) + '_' + str(uuid.uuid4()) + ".mp4"
+
+        video_path = os.path.join(save_directory, file_name if file_name is not None else url_filename)
 
         # Save the video
         with open(video_path, "wb") as video_file:
@@ -209,3 +220,58 @@ def add_fix_to_filename(file_path, suffix="fix") -> str:
     print(f"Renamed: {file_path} -> {new_file_path}")
 
     return new_file_path
+
+class GENERATION_MODE:
+    I2V = "i2v" # image to video (using last frame or generated storyboard as first frame)
+    T2V = "t2v" # text to video (cross scene consistency by character description)
+    R2V = "r2v" # reference to video
+
+
+def get_aliyun_sign_url(file_path, folder=None):
+    import oss2
+    from oss2.credentials import EnvironmentVariableCredentialsProvider
+    
+    # 从环境变量中获取访问凭证。运行本代码示例之前，请确保已设置环境变量OSS_ACCESS_KEY_ID和OSS_ACCESS_KEY_SECRET。
+    auth = oss2.ProviderAuthV4(EnvironmentVariableCredentialsProvider())
+
+    # 填写Bucket所在地域对应的Endpoint。以华东1（杭州）为例，Endpoint填写为https://oss-cn-hangzhou.aliyuncs.com。
+    endpoint = "https://oss-cn-shanghai.aliyuncs.com"
+
+    # 填写Endpoint对应的Region信息，例如cn-hangzhou。注意，v4签名下，必须填写该参数
+    region = "cn-shanghai"
+    # 填写Bucket名称，例如examplebucket。
+    bucketName = "video-storage-6999"
+    # 创建Bucket实例，指定存储空间的名称和Region信息。
+    bucket = oss2.Bucket(auth, endpoint, bucketName, region=region)
+
+    # 本地文件的完整路径
+    local_file_path = file_path  
+
+    # 填写Object完整路径，完整路径中不能包含Bucket名称。例如exampleobject.txt。
+    if folder:
+        objectName = folder + '/' + os.path.basename(local_file_path)
+    else:
+        objectName = os.path.basename(local_file_path)
+
+    # 使用put_object_from_file方法将本地文件上传至OSS
+    bucket.put_object_from_file(objectName, local_file_path)
+
+    return bucket.sign_url('GET', objectName, 2 * 60 * 60)  # 2小时有效期
+
+# Helper function to generate a unique hash based on the prompt
+def generate_hash(prompt):
+    # Generate a SHA-256 hash of the prompt string
+    return hashlib.sha256(prompt.encode('utf-8')).hexdigest()
+
+# Save results to disk using pickle
+def save_to_disk(content, file_path):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, 'wb') as f:
+        pickle.dump(content, f)
+
+# Check if the result exists, if so return the content
+def load_from_disk(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, 'rb') as f:
+            return pickle.load(f)
+    return None

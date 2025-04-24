@@ -7,6 +7,8 @@ from pathlib import Path
 import sys
 import dotenv
 
+from api_interface import kling_text2video_agent
+
 # 添加ISG_agent目录到Python路径以便导入app_service_forVidu模块
 sys.path.append(os.path.join(os.path.dirname(__file__), "ISG_agent"))
 from util import download_video_and_save_as_mp4
@@ -25,58 +27,12 @@ logging.basicConfig(
 dotenv.load_dotenv()
 
 # 定义路径
-STORIES_PATH = '/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/GPT-story/stories.json'
-OUTPUT_DIR = '/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/GPT-story-vidu-1.5/'
+STORIES_PATH = '/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json'
+OUTPUT_DIR = '/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/Kling1.6-NovelConditionedVGen'
 
 def ensure_directory_exists(directory):
     """确保目录存在，如果不存在则创建"""
     Path(directory).mkdir(parents=True, exist_ok=True)
-
-def generate_story_video(story, output_path):
-    """为故事生成视频并保存到指定路径"""
-    story_id = story['id']
-    content = story['Query'][0]['content']
-    
-    # 提取标题作为提示，如果没有标题则使用内容的前100个字符
-    prompt = content
-    
-    logging.info(f"生成视频 - 故事ID: {story_id}, 提示: {prompt}")
-    
-    try:
-        # 生成视频
-        task_id = generate_video_request({"prompt": prompt})
-        if not task_id:
-            logging.error(f"无法为故事 {story_id} 创建视频生成任务")
-            return None
-        
-        # 轮询视频状态
-        logging.info(f"视频生成中 - 故事ID: {story_id}, 任务ID: {task_id}")
-        video_url = None
-        retry_count = 0
-        max_retries = 20  # 增加重试次数以处理较长的生成时间
-        
-        while retry_count < max_retries:
-            video_url = check_text2video_status(task_id)
-            if video_url:
-                break
-            logging.info(f"等待视频生成 - 故事ID: {story_id}, 尝试次数: {retry_count+1}/{max_retries}")
-            retry_count += 1
-            time.sleep(30)  # 每30秒检查一次
-        
-        if not video_url:
-            logging.error(f"视频生成超时或失败 - 故事ID: {story_id}")
-            return None
-        
-        # 下载视频
-        logging.info(f"视频已生成，准备下载 - 故事ID: {story_id}")
-        video_path, screenshots = download_video_and_save_as_mp4(video_url, output_file=output_path, seconds_per_screenshot=1)
-        
-        logging.info(f"视频已保存 - 故事ID: {story_id}, 路径: {video_path}")
-        return video_path
-        
-    except Exception as e:
-        logging.error(f"处理故事 {story_id} 时发生错误: {str(e)}")
-        return None
 
 def main():
     """主函数：读取故事并生成视频"""
@@ -104,7 +60,25 @@ def main():
                 continue
             
             # 生成并保存视频
-            video_path = generate_story_video(story, output_path)
+            url = "http://localhost:7903/generate_video"  # Backend Flask API endpoint for text2video
+            data = {
+                "prompt": story["Query"][0]['content'],
+                "seconds_per_screenshot" : 1
+            }
+            # return "videos/ChGIFWdqfWwAAAAAAAqcQg-0_raw_video_1.mp4", [test_img]
+            response = requests.post(url, json=data)
+            if response.status_code == 200:
+                video_path, screenshots = response.json().get("video_file", ""), response.json().get("screenshots",[])
+            else:
+                raise Exception(f"Error {response.status_code}: {response.text}")
+            
+            # move video to output path
+            if video_path:
+                
+                os.rename(video_path, output_path)
+                logging.info(f"故事 {story_id} 的视频已保存到 {output_path}")
+            else:
+                logging.error(f"无法为故事 {story_id} 生成视频")
             
             if video_path:
                 logging.info(f"成功生成故事 {story_id} 的视频")

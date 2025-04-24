@@ -35,7 +35,7 @@ def generate_video_request(data):
     try:
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': os.getenv('KLING_API_KEY'),
+            'Authorization': f"Bearer {os.getenv('KLING_API_KEY')}",
         }
 
         # Prepare the data to send in the POST request
@@ -50,6 +50,7 @@ def generate_video_request(data):
             "callback_url": data.get('callback_url', ''),
             "external_task_id": data.get('external_task_id', '')
         }
+        print(payload)
 
         # POST request to generate the video
         response = requests.post(TEXT_API_URL, json=payload, headers=headers)
@@ -70,7 +71,7 @@ def generate_video_request(data):
 def check_text2video_status(task_id):
     try:
         headers = {
-            'Authorization': os.getenv('KLING_API_KEY'),
+            'Authorization': f"Bearer {os.getenv('KLING_API_KEY')}",
             'Content-Type': 'application/json',
         }
 
@@ -145,7 +146,7 @@ def generate_video():
 def generate_image2video_request(data):
     try:
         headers = {
-            'Authorization': os.getenv('KLING_API_KEY'),
+            'Authorization': f"Bearer {os.getenv('KLING_API_KEY')}",
             'Content-Type': 'application/json'
         }
 
@@ -189,7 +190,7 @@ def generate_image2video_request(data):
 def check_img2video_status(task_id):
     try:
         headers = {
-            'Authorization': os.getenv('KLING_API_KEY'),
+            'Authorization': f"Bearer {os.getenv('KLING_API_KEY')}",
             'Content-Type': 'application/json'
         }
 
@@ -263,7 +264,7 @@ def generate_image2video():
 def IMGGEN_generate_image_request(data):
     try:
         headers = {
-            'Authorization': os.getenv('KLING_API_KEY'),
+            'Authorization': f"Bearer {os.getenv('KLING_API_KEY')}",
             'Content-Type': 'application/json'
         }
 
@@ -296,7 +297,7 @@ def IMGGEN_generate_image_request(data):
 def IMGGEN_check_image_status(task_id):
     try:
         headers = {
-            'Authorization': os.getenv('KLING_API_KEY'),
+            'Authorization': f"Bearer {os.getenv('KLING_API_KEY')}",
             'Content-Type': 'application/json'
         }
 

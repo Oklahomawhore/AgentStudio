@@ -1,5 +1,10 @@
 OUT_DIR="/data/wangshu/wangshu_code/ISG/ISG_agent"
-DATASETS=("/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/CVSV/stories.json" "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/GPT-story/stories.json" "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json" "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/YouCook2/stories.json")
+DATASETS=(
+    "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/CVSV/stories.json" 
+    "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/GPT-story/stories.json" 
+    "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json" 
+    "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/YouCook2/stories.json"
+    )
 MODEL = "Vidu20"
 
 # 处理每个数据集

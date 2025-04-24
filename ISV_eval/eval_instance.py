@@ -61,12 +61,16 @@ class AnswerProcessor:
         return "Ambiguous"
     
     @staticmethod
-    def standardize_multiple_choice_answer(answer: str) -> str:
+    def standardize_multiple_choice_answer(answer: str, options=None) -> str:
         """从多选题答案中提取选项字母"""
         # 尝试直接匹配选项字母
         match = re.search(r'\b([A-D])\b', answer, re.IGNORECASE)
         if match:
             return match.group(1).upper()
+        
+        if options:
+            if answer in options:
+                return ["A", "B", "C", "D"][options.index(answer)]
         
         # 查找包含"答案是"、"选择"等关键词后面的字母
         patterns = [
@@ -118,7 +122,7 @@ class ResponseEvaluator:
         
         # 加载结果和问题
         self.results = self._load_json(results_path)
-        self.task_id = os.path.basename(os.path.dirname(results_path)).split('_')[-1]
+        self.task_id = os.path.basename(os.path.dirname(results_path)).split('_')[-1] # 0000 from Task_0000 as folder name
         self.questions = self._load_questions()
         
         # 评估状态和结果
@@ -168,6 +172,7 @@ class ResponseEvaluator:
         """评估单个答案"""
         if question_type == "yes_no":
             std_answer = AnswerProcessor.standardize_yes_no_answer(answer)
+            reference["answer"] = AnswerProcessor.standardize_yes_no_answer(reference["answer"])
             if std_answer == "Ambiguous":
                 if self.reprompt_llm:
                     # 重新询问LLM以消除歧义
@@ -179,6 +184,7 @@ class ResponseEvaluator:
             
         elif question_type == "multiple_choice":
             std_answer = AnswerProcessor.standardize_multiple_choice_answer(answer)
+            reference["answer"] = AnswerProcessor.standardize_multiple_choice_answer(reference["answer"], reference["options"])
             if std_answer == "Ambiguous":
                 if self.reprompt_llm:
                     # 重新询问LLM以消除歧义
@@ -394,14 +400,14 @@ def main():
     agg_scores = []
     for task in prompts:
         task_id = task["id"]
-        if os.path.exists(os.path.join(args.results_dir, f"Task_{str(task_id)}", "report.json")):
-            print(f"Task {task_id} already evaluated, skipping...")
-            with open(os.path.join(args.results_dir, f"Task_{str(task_id)}", "report.json"), 'r', encoding='utf-8') as f:
-                report = json.load(f)
-            print(report)
-            total += report["scores"]["aggregate"]
-            agg_scores.append(report["scores"]["aggregate"])
-            continue
+        # if os.path.exists(os.path.join(args.results_dir, f"Task_{str(task_id)}", "report.json")):
+        #     print(f"Task {task_id} already evaluated, skipping...")
+        #     with open(os.path.join(args.results_dir, f"Task_{str(task_id)}", "report.json"), 'r', encoding='utf-8') as f:
+        #         report = json.load(f)
+        #     print(report)
+        #     total += report["scores"]["aggregate"]
+        #     agg_scores.append(report["scores"]["aggregate"])
+        #     continue
         print(f"Evaluating for {os.path.join(args.results_dir, f'Task_{task_id}',  'MovieReviewCommission_*.json')}")
         results_path = glob.glob(os.path.join(args.results_dir, f"Task_{task_id}",  "MovieReviewCommission_*.json"))[0]
         # 初始化评估器

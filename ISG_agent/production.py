@@ -1,27 +1,24 @@
 import os
-import torch
-from moviepy import *
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from api_interface import kling_imggen_agent, kling_img2video_agent, kling_text2video_agent, morph_images_agent
-import ChatTTS
-import torchaudio
 import time
-import hashlib
-import pickle
-import replicate
-import dotenv
 from threading import Lock
 import uuid
-import requests
-import json
-from pydub import AudioSegment  # For concatenating WAV files
 import re
 import base64
 from typing import List,Tuple, Dict
 
+import torch
+import pickle
+import dotenv
+import ChatTTS
+from moviepy import *
+from pydub import AudioSegment  # For concatenating WAV files
 import torchaudio
 from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_write
+
+from api_interface import kling_imggen_agent, kling_img2video_agent, kling_text2video_agent, morph_images_agent, kling_ref2video_agent
+from util import generate_hash, save_to_disk, load_from_disk
 
 dotenv.load_dotenv()
 
@@ -31,24 +28,7 @@ chat.load(compile=False)
 # In this file, we decide which genration backend to call and
 # hide the details of generation logic from the main code
 
-# Helper function to generate a unique hash based on the prompt
-def generate_hash(prompt):
-    print(f"hashing {prompt}")
-    # Generate a SHA-256 hash of the prompt string
-    return hashlib.sha256(prompt.encode('utf-8')).hexdigest()
 
-# Save results to disk using pickle
-def save_to_disk(content, file_path):
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(file_path, 'wb') as f:
-        pickle.dump(content, f)
-
-# Check if the result exists, if so return the content
-def load_from_disk(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, 'rb') as f:
-            return pickle.load(f)
-    return None
 
 # Generate character images based on prompts
 def gen_img(prompt):
@@ -61,7 +41,7 @@ def gen_img(prompt):
         if existing_image is not None:
             print(f"<GEN_IMAGE> prompt: {prompt} already exists")
             return existing_image
-        img_base64 = kling_imggen_agent(prompt.replace("-",","))
+        img_base64 = kling_imggen_agent("A single-character portrait of : " + prompt.replace("-",","))
         save_to_disk(img_base64, file_path)
     except Exception as e:
         print(f"Error in generating charactor: {str(e)}") 
@@ -70,7 +50,8 @@ def gen_img(prompt):
 
 def gen_video(prompt, image, i2v=False):
     try:
-        prompt_hash = generate_hash(prompt + image)  # Combine image path for uniqueness
+        hash_string = str(prompt) + str(image)
+        prompt_hash = generate_hash(hash_string)  # Combine image path for uniqueness
         file_path = f"videos/{prompt_hash}.pkl"
         
         # Check if the video already 
@@ -79,8 +60,14 @@ def gen_video(prompt, image, i2v=False):
         if existing_video is not None:
             print(f"<GEN_VIDEO> prompt: {prompt} image: {image} already exists")
             return existing_video
-        if i2v:
-            video_list, screenshot_list = kling_img2video_agent(image, prompt)
+        if image != '':
+            assert(isinstance(image, str) or isinstance(image, list)), "Image must be a string or a list of strings"
+            if isinstance(image, str):
+                video_list, screenshot_list = kling_img2video_agent(image, prompt)
+            elif isinstance(image, list):
+                video_list, screenshot_list = kling_ref2video_agent(image, prompt)
+            else:
+                raise ValueError(f"Unexpected image argument type, expected str or list, got {type(image)}")
         else:
             video_list, screenshot_list = kling_text2video_agent(prompt)
         # time.sleep(10)
@@ -157,7 +144,7 @@ def generate_single_music(prompt: str, duration: float) -> str:
             return file_path
 
         # Music generation code
-        model = MusicGen.get_pretrained('facebook/musicgen-melody')
+        model = MusicGen.get_pretrained('facebook/musicgen-stereo-melody-large')
         model.set_generation_params(duration=duration)
         wav = model.generate([prompt]) 
 
@@ -387,11 +374,11 @@ def concat_video(video_clips: List[VideoFileClip], music_path, tts_paths, task_d
 
 def generate_all(video_task, music_task, tts_task, task_dir):
     # Create separate executors for each task category
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=5, thread_name_prefix='gen_video_threads') as executor:
         start = time.time()
         
         # First generate videos that need screenshots
-        t2v_tasks = [task for task in video_task if task[1] == ""]
+        t2v_tasks = [task for task in video_task if task[1] != "<LastFrame>"]
         vid_results_stage_1 = list(executor.map(gen_video, *zip(*t2v_tasks)))
         
         # Process remaining tasks sequentially if they need last frame

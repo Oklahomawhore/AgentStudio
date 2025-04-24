@@ -7,21 +7,28 @@ import dotenv
 import os
 from util import download_video_and_save_as_mp4, process_image, add_fix_to_filename
 import base64
+import json
+import os.path
+from logging import Logger
+
+from util import get_aliyun_sign_url
 
 dotenv.load_dotenv()
 
 app = Flask(__name__)
 
+logging = Logger(__name__)
+
 # API endpoints for Vidu
-TEXT_API_URL = 'https://api.vidu.com/ent/v2/text2video'
-TEXT_STATUS_URL = 'https://api.vidu.com/ent/v2/tasks/'
+TEXT_API_URL = 'https://api.vidu.cn/ent/v2/text2video'
+TEXT_STATUS_URL = 'https://api.vidu.cn/ent/v2/tasks/'
 
 # Function to generate video request
 def generate_video_request(data):
     try:
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {os.getenv("VIDU_API_KEY")}',
+            'Authorization': f'Token {os.getenv("VIDU_API_KEY")}',
         }
 
         # Prepare the data to send in the POST request
@@ -149,29 +156,23 @@ def generate_image2video():
             return jsonify({'error': f"Error in processing image: {e}"}), 500
 
         # Read the file in binary mode and encode it to Base64
-        with open(image_path, "rb") as image_file:
-            base64_encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
+        signed_url = get_aliyun_sign_url(image_path, folder='images')
 
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {os.getenv("VIDU_API_KEY")}',
+            'Authorization': f'Token {os.getenv("VIDU_API_KEY")}',
         }
 
         # Prepare the data to send in the POST request
         payload = {
-            "prompt": data['prompt'],
-            "image": base64_encoded_image,
-            "width": data.get('width', 1280),
-            "height": data.get('height', 720),
-            "fps": data.get('fps', 24),
-            "seconds": data.get('duration', 5),
-            "guidance_scale": data.get('guidance_scale', 7.0),
-            "negative_prompt": data.get('negative_prompt', '')
+            "model": "vidu2.0",
+            "image": signed_url,
+            "seed" : 2025
         }
 
         # POST request to generate the video
         # Note: Assuming Vidu has an image-to-video endpoint
-        image2video_url = 'https://platform.vidu.com/api/v1/image-to-video'
+        image2video_url = 'https://api.vidu.cn/ent/v2/img2video'
         response = requests.post(image2video_url, json=payload, headers=headers)
         response_data = response.json()
 
@@ -184,16 +185,16 @@ def generate_image2video():
             # Check status periodically
             video_url = None
             retry_count = 0
-            max_retries = 10
+            max_retries = 20
             while retry_count < max_retries:
                 # Using the same status URL assuming it works for image2video tasks too
-                status_response = requests.get(f"{TEXT_STATUS_URL}{task_id}", headers=headers)
+                status_response = requests.get(f"{TEXT_STATUS_URL}{task_id}/creations", headers=headers)
                 status_data = status_response.json()
                 
                 if status_response.status_code == 200:
                     status = status_data.get('status')
-                    if status == 'complete':
-                        video_url = status_data.get('video_url')
+                    if status == 'success':
+                        video_url = status_data.get('createions')[0].get('url')
                         break
                     elif status == 'failed':
                         break
@@ -245,75 +246,86 @@ def generate_reference2video():
                     return jsonify({'error': 'Image file not found'}), 400
             except Exception as e:
                 return jsonify({'error': f"Error in processing image: {e}"}), 500
-
             # Read the file in binary mode and encode it to Base64
-            with open(image_path, "rb") as image_file:
-                base64_encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
-            encoded_images.append(f"data:image/jpeg;base64,{base64_encoded_image}")
+            signed_url = get_aliyun_sign_url(image_path, folder='images')
+            encoded_images.append(signed_url)
+            logging.info(f"Encoded image {i} {data['image'][i]}: {signed_url}")
+            
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {os.getenv("VIDU_API_KEY")}',
+            'Authorization': f'Token {os.getenv("VIDU_API_KEY")}',
         }
-
         # Prepare the data to send in the POST request
         payload = {
             "model" : "vidu2.0",
             "prompt": data['prompt'],
-            "images" : base64_encoded_image,
+            "images" : encoded_images,
             "resolution": data.get('resolution', '360p'),
             "duration": data.get('duration', 4),
             "seed" : 2025,
             "aspect_ratio" : data.get('aspect_ratio', '16:9'),
         }
-
         # POST request to generate the video using reference-to-video API
         reference2video_url = 'https://api.vidu.cn/ent/v2/reference2video'
         response = requests.post(reference2video_url, json=payload, headers=headers)
         response_data = response.json()
-
+        logging.info(f"Create task response: {response_data}")
         # Check if the request was successful
         if response.status_code == 200:
             task_id = response_data.get('task_id')
             if not task_id:
                 return jsonify({'error': 'Failed to get task_id for reference-to-video generation.'}), 500
-                
-            # Check status periodically
-            video_url = None
-            retry_count = 0
-            max_retries = 20
-            while retry_count < max_retries:
-                status_response = requests.get(f"{TEXT_STATUS_URL}{task_id}", headers=headers)
-                status_data = status_response.json()
-                
-                if status_response.status_code == 200:
-                    status = status_data.get('status')
-                    if status == 'success':
-                        video_url = status_data.get('createions')[0].get('url')
-                        break
-                    elif status == 'failed':
-                        break
-                    elif status =='queueing':
-                        print("Task is still in queue, waiting for processing...")
-                    elif status == 'processing':
-                        print("Task is being processed...")
-                
-                # Wait before checking again
-                retry_count += 1
-                time.sleep(30)  # Check every 30 seconds
-
-            if video_url:
-                # Download video and save
-                seconds_per_screenshot = data.get('seconds_per_screenshot', 1)
-                video_path, screenshots = download_video_and_save_as_mp4(video_url, seconds_per_screenshot=seconds_per_screenshot)
-
-                if video_path:
-                    return jsonify({'video_file': video_path, 'screenshots': screenshots}), 200
-                else:
-                    return jsonify({'error': 'Failed to download or encode the video.'}), 500
-            else:
-                return jsonify({'error': 'Task did not succeed or video not available.'}), 500
+            
+            print(f"Created new task with ID: {task_id}")
         else:
             return jsonify({'error': f"API error: {response.status_code} - {response_data.get('message', 'Unknown error')}"}), response.status_code
+    
+        # 任务ID获取后，检查状态
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Token {os.getenv("VIDU_API_KEY")}',
+        }
+        
+        # Check status periodically
+        video_url = None
+        retry_count = 0
+        max_retries = 20
+        status = ''
+
+        while retry_count < max_retries:
+            status_response = requests.get(f"{TEXT_STATUS_URL}{task_id}/creations", headers=headers)
+            status_data = status_response.json()
+            
+            if status_response.status_code == 200:
+                status = status_data.get('state')
+                if status == 'success':
+                    video_url = status_data.get('creations')[0].get('url')
+                    logging.info(f"Task {task_id} succeeded: {video_url}")
+                    break
+                elif status == 'failed':
+                    logging.error(f"Task {task_id} failed: {status_data}")
+                    break
+                elif status =='queueing':
+                    logging.info(f"Task {task_id} is still in queue, waiting for processing...")
+                elif status == 'processing':
+                    logging.info(f"Task {task_id} is being processed...")
+            else:
+                logging.info(f"Error: {status_response.status_code} - {status_data.get('message', 'Unknown error')}")
+            # Wait before checking again
+            retry_count += 1
+            time.sleep(30)  # Check every 30 seconds
+
+        if video_url:
+            # Download video and save
+            seconds_per_screenshot = data.get('seconds_per_screenshot', 1)
+            video_path, screenshots = download_video_and_save_as_mp4(video_url, seconds_per_screenshot=seconds_per_screenshot)
+
+            if video_path:
+                return jsonify({'video_file': video_path, 'screenshots': screenshots, 'task_id': task_id}), 200
+            else:
+                return jsonify({'error': 'Failed to download or encode the video.', 'task_id': task_id}), 500
+        else:
+            return jsonify({'error': f'Task did not succeed or video not available. Last status {status} Task id {task_id}'}), 500
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -321,6 +333,6 @@ def generate_reference2video():
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
-    parser.add_argument('-p', '--port', default=7904, type=int, help='port to listen on')
+    parser.add_argument('-p', '--port', default=7988, type=int, help='port to listen on')
     args = parser.parse_args()
     app.run(port=args.port, host='0.0.0.0')

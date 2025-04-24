@@ -2,9 +2,10 @@
 
 # Define datasets and output directory, consistent with 1_video_gen.sh
 DATASETS=(
-          "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/GPT-story/stories.json" 
+        #   "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/GPT-story/stories.json" 
           "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json" 
-          "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/YouCook2/stories.json")
+        #   "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/YouCook2/stories.json"
+          )
 
 # Initialize RESULTS_DIR array to match DATASETS length
 # RESULTS_DIR=(
@@ -14,16 +15,22 @@ DATASETS=(
 # )
 
 RESULTS_DIR=(
-    "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_GPT-story"
-    "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning"
-    "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_YouCook2"
+    # "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_GPT-story"
+    "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_newplanning_run2"
+    # "/data/wangshu/wangshu_code/ISG/ISG_agent/results_video_YouCook2"
 )
+
+# RESULTS_DIR=(
+#     "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/King1.6-GPT-story"
+#     "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/Kling1.6-NovelConditionedVGen"
+#     "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/Kling1.6-YouCook2"
+# )
 
 # Define evaluation results output directory
 EVAL_RESULTS_DIR="/data/wangshu/wangshu_code/ISG/ISV_eval/eval_results"
 
 # Define model name
-MODEL_NAME="ISG_agent"
+MODEL_NAME="ISG_agent_run2"
 
 # Process each dataset
 for i in "${!DATASETS[@]}"; do

@@ -20,7 +20,7 @@ from typing import DefaultDict, Dict
 from PIL import Image
 import glob
 
-from util import replace_characters_in_content
+from util import replace_characters_in_content, GENERATION_MODE, generate_hash
 
 
 dotenv.load_dotenv()
@@ -810,6 +810,11 @@ def generate_storyboard(prompt, character_imgs):
     Returns:
         str: The path to the generated storyboard image.
     """
+    p_hash = generate_hash(prompt)
+    storyboard_path = os.path.join('imgs', f"{p_hash}.png")
+    if os.path.exists(storyboard_path):
+        print(f"Storyboard already exists at {storyboard_path}")
+        return storyboard_path
     # Placeholder for actual storyboard generation logic
     messages = []
     contents = []
@@ -817,25 +822,37 @@ def generate_storyboard(prompt, character_imgs):
     for img in character_imgs:
         contents.append({"type": "image_url", "image_url": {"url": img}})
     messages.append({"role": "user", "content": contents})
-    completion = OpenAIClient.chat.completions.create(
-                        model='gpt-4o-image-vip',
-                        messages=messages,
-                    )
-    assistant_response = completion.choices[0].message
-    response_text = completion.choices[0].message.content
-    return response_text
 
-def Execute_plan(plan, task, task_dir, characters={}, story="", i2v=False):
+    client = OpenAI(
+       api_key=os.getenv('OPENAI_API_KEY'), # KEY
+       base_url=os.getenv('OPENAI_BASE_URL')
+    )
+    result = client.images.edit(
+                        model='gpt-image-1',
+                        image=[open(img, 'rb') for img in character_imgs],
+                        prompt=prompt,
+                    )
+    image_base64 = result.data[0].b64_json
+    image_bytes = base64.b64decode(image_base64)
+
+    # Save the image to a file
+    with open(storyboard_path, "wb") as f:
+        f.write(image_bytes)
+    return storyboard_path
+
+def Execute_plan(plan, task, task_dir, characters={}, story="", mode=GENERATION_MODE.T2V):
     if os.path.exists(f"{task_dir}/error.log"):
         return
     
     
     result = ""
     # TODO: add i2i implementation
-    # character_img = DefaultDict()
+    character_img = DefaultDict()
 
-    if i2v:
+    print(f">>> mode is {mode}")
+    if mode==GENERATION_MODE.I2V or mode==GENERATION_MODE.R2V:
         if os.path.exists(f"{task_dir}/characters_img.json"):
+            print("Character imgs exist, skipping...")
             with open(f"{task_dir}/characters_img.json", "r") as f:
                 character_img = json.load(f)
         else:
@@ -860,7 +877,7 @@ def Execute_plan(plan, task, task_dir, characters={}, story="", i2v=False):
     tts_tasks = []
     for i,step in enumerate(plan):
         Task = step.get("Task", "")
-        Task = "t2v" if not i2v else "i2v"
+        Task = mode
         if Task == "t2v":
             # Generate video
             # In this step, we expand our content into video prompt, conditioned on the overall storyline.
@@ -883,7 +900,7 @@ def Execute_plan(plan, task, task_dir, characters={}, story="", i2v=False):
             if len(voice_direction) == 0 and step['TTS_prompt'] not in  ["无",'None'] and step['TTS_prompt'] != "":
                 voice_direction["narrator"] = "30-year old female, soft voice, kind and warm"
             tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] not in  ["无", "None"] else ("", {}))
-        elif Task == "i2v":
+        elif Task == "i2v" or Task == "r2v":
             
             # In this step, we expand our content into video prompt, conditioned on the overall storyline.
             video_prompt = video_prompts[str(step['Step'])] if str(step['Step']) in video_prompts else conditional_video_prompt(step['Input_text'], story, i2v=True)
@@ -893,8 +910,23 @@ def Execute_plan(plan, task, task_dir, characters={}, story="", i2v=False):
             # for now, image to video cannot handle character reference, so substitute with character descriptions in content
             
             prompt_enhance, character_list =  replace_characters_in_content(video_prompt, characters)
-            first_frame = generate_storyboard(prompt_enhance, [character_img[name] for name in character_list])
-            video_tasks.append((prompt_enhance, "<LastFrame>"))
+
+            if Task == "i2v":
+                first_frame = generate_storyboard(prompt_enhance, [character_img[name] for name in character_list])
+                # last-frame
+                video_tasks.append((prompt_enhance, first_frame))
+            # r2v
+            else:
+                if len(character_list) > 0 and len(character_list) < 4:
+                    video_tasks.append((prompt_enhance, [character_img[name] for name in character_list]))
+                else:
+                    # character list too few or too many
+                    if len(character_list) == 0:
+                        video_tasks.append((prompt_enhance, ""))
+                    else:
+                        video_tasks.append((prompt_enhance, [character_img[name] for name in character_list[:3]]))
+
+            
         
             # Generate music
             music_tasks.append(step['Music_prompt']) if step['Music_prompt'] != "无" else ("", [])
@@ -933,7 +965,7 @@ def main():
     parser.add_argument("--input_json", type=str, help="Input json file")
     parser.add_argument("--outdir", type=str, help="Output directory")
     parser.add_argument("--dry-run", action='store_true', help='Only make plans, skip execute')
-    parser.add_argument("--i2i", action='store_true', help='Use i2i model')
+    parser.add_argument("--mode", choices=['i2v', 't2v', 'r2v'], default='t2v', help='Mode of generation: i2v, t2v, r2v')
     args = parser.parse_args()
     
     input_json = args.input_json
@@ -1058,7 +1090,7 @@ def main():
             save_plan_json(Dict_for_plan, f"{task_dir}/Dict_for_plan.json")
             save_plan_json([MessageToJson(m) for m in messages], f"{task_dir}/messages.json")
         if  not args.dry_run:
-            Execute_plan(plan,task, task_dir, characters=characters, story=story, i2v=args.i2i)
+            Execute_plan(plan,task, task_dir, characters=characters, story=story, mode=args.mode)
         else:
             print("dry run, skipping execute")
         
