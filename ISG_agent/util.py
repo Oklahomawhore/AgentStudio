@@ -11,6 +11,7 @@ import dotenv
 from urllib.parse import urlparse
 import time
 import uuid
+import json
 import hashlib, pickle
 
 dotenv.load_dotenv()
@@ -275,3 +276,42 @@ def load_from_disk(file_path):
         with open(file_path, 'rb') as f:
             return pickle.load(f)
     return None
+
+def save_error_file(task_dir, error_message):
+    os.makedirs(task_dir, exist_ok=True)
+    error_file = os.path.join(task_dir, "error.log")
+    with open(error_file, "a") as f:
+        f.write(error_message + "\n")
+
+def load_input_json(json_file:str):
+    with open(json_file, 'r') as f:
+        data = json.load(f)
+    return data
+
+def load_input_txt(txt_file:str):
+    with open(txt_file, 'r') as f:
+        data = f.read()
+    return data
+def save_plan_json(json_data,file):
+    dir_name = os.path.dirname(file)
+    print(f"Directory: {dir_name}")
+    os.makedirs(dir_name, exist_ok=True)
+    with open(file, 'w', encoding='utf-8') as f:
+        json.dump(json_data, f, indent=4, ensure_ascii=False)
+
+def save_result_json(json_data,task_dir):
+    os.makedirs(task_dir, exist_ok=True)
+    with open(f'{task_dir}/result.json', 'w') as f:
+        json.dump(json_data, f, indent=4)
+        
+        
+def get_image_media_type(image_data):
+    """
+    Detects the image media type based on the magic number in the binary data.
+    """
+    if image_data[:4] == b'\x89PNG':
+        return "image/png"
+    elif image_data[:2] == b'\xFF\xD8':
+        return "image/jpeg"
+    else:
+        raise ValueError("Unsupported image format")

@@ -9,7 +9,7 @@ import glob
 from openai import OpenAI
 from dotenv import load_dotenv
 
-from util import QUESTION_TEMPLATE
+from ISV_eval.util import QUESTION_TEMPLATE
 
 load_dotenv()
 
@@ -118,6 +118,8 @@ class ResponseEvaluator:
         """
         self.results_path = results_path
         self.questions_dir = questions_dir
+        if reprompt_llm is None:
+            self.reprompt_llm = reprompt_llm
         self.reprompt_llm = reprompt_llm
         
         # 加载结果和问题

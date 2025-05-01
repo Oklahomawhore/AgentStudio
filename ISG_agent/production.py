@@ -144,6 +144,7 @@ def generate_single_music(prompt: str, duration: float) -> str:
             return file_path
 
         # Music generation code
+        # TODO: try subprocess execution to avoid OOM.
         model = MusicGen.get_pretrained('facebook/musicgen-stereo-melody-large')
         model.set_generation_params(duration=duration)
         wav = model.generate([prompt]) 

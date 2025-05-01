@@ -8,7 +8,7 @@ from collections import defaultdict
 class MovieReviewCommission:
     """电影评审委员会系统"""
     
-    def __init__(self, agents: List[BaseAgent], save_path: Optional[str] = None, video_path: Optional[str] = None, scenes: Optional[List[str]] = None):
+    def __init__(self, agents: List[BaseAgent], save_path: Optional[str] = None, video_path: Optional[str] = None, scenes: Optional[List[str]] = None, local_model=None, local_processor=None):
         """
         初始化电影评审委员会
         
@@ -27,6 +27,8 @@ class MovieReviewCommission:
         self.scenes = scenes
         self.questions_to_ask = defaultdict(list)
         self.questions_to_ask_contents = {}
+        self.local_model = local_model
+        self.local_processor = local_processor
 
     def _load_questions_asked(self):
         """
@@ -82,7 +84,7 @@ class MovieReviewCommission:
                     if not question in self.questions_to_ask_contents:
                         self.questions_to_ask_contents[question] = content
                 else:
-                    response = await agent._respond_to_user(content)
+                    response = await agent._respond_to_user(content, local_model=self.local_model, local_processor=self.local_processor)
                     questionnaire_results[agent.characteristics.name] = response
                     # print(f"Q: {question} \n {agent.characteristics.name}: {response}")
                     self.questions_asked[question].append({agent.characteristics.name: response})

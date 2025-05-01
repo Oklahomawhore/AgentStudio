@@ -1,0 +1,12 @@
+questions_dir: /data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/instance_questions_deepseek
+prompt_path: /data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json
+task_template: {
+    "id": "0000",
+    "Category": "Video Storytelling",
+    "Query": [
+      {
+        "type": "text",
+        "content": "###"
+      }
+    ]
+  }

@@ -16,10 +16,6 @@ import oss2
 import copy
 from oss2.credentials import EnvironmentVariableCredentialsProvider
 
-from qwen_vl_utils import process_vision_info
-from util import prepare_message_for_vllm
-from dashscope.utils.oss_utils import preprocess_message_element
-
 from vlm_score import inference
 
 # 添加一个线程本地存储，用于存储每个线程的客户端实例
@@ -215,7 +211,7 @@ class BaseAgent:
             # 否则，回应用户的消息
             return await self._respond_to_user(message)
     
-    async def _respond_to_user(self, message: List[Dict] | List[List[Dict]], include_history: bool = False, batch=False) -> str:
+    async def _respond_to_user(self, message: List[Dict] | List[List[Dict]], include_history: bool = False, batch=False, local_model=None, local_processor=None) -> str:
         """
         回应用户的消息 (异步版本)
         
@@ -249,33 +245,19 @@ class BaseAgent:
         if 'qwen' in self.model.lower():
             # 使用线程池执行DashScope调用
             try:
+                reply = inference(local_model, local_processor, prompt=raw_messages)
+                
+            except Exception as e:
+                # print("-" * 40)
+                # print(f"DashScope API failed, {e}, try using local model..")
+                # print("-" * 40)
+                print("local model failed to provide response, using dashscope api")
                 uploaded = BaseAgent._preprocess_messages(self.model, messages, os.getenv("DASHSCOPE_API_KEY"))
                 reply = await loop.run_in_executor(
                     self.executor,
                     self._call_dashscope,
                     messages
                 )
-            except Exception as e:
-                # use local
-                # openai_api_key = "EMPTY"
-                # openai_api_base = "http://localhost:8000/v1"
-
-                # client = OpenAI(
-                #     api_key=openai_api_key,
-                #     base_url=openai_api_base,
-                # )
-
-                # chat_response = client.chat.completions.create(
-                #     model="Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
-                #     messages=messages
-                # )
-                # reply = chat_response
-                print("-" * 40)
-                print("-" * 40)
-                print(f"DashScope API failed, {e}, try using local model..")
-                print(f"messages: {raw_messages}")
-                print("-" * 40)
-                reply = inference(prompt=raw_messages)
                 
         else:
             # 使用线程池执行OpenAI调用

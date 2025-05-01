@@ -20,7 +20,16 @@ from typing import DefaultDict, Dict
 from PIL import Image
 import glob
 
-from util import replace_characters_in_content, GENERATION_MODE, generate_hash
+from util import (
+    replace_characters_in_content, 
+    GENERATION_MODE, 
+    generate_hash,
+    load_input_json,
+    save_plan_json,
+    save_error_file,
+    get_image_media_type,
+    load_input_txt
+    )
 
 
 dotenv.load_dotenv()
@@ -39,45 +48,6 @@ ClaudeClient = OpenAI(
 IMAGE_ROOT = "../ISV_eval/VideoStoryTelling/"
 
 benchmark_file = "../ISV_eval/VideoStoryTelling/video_storytelling_mini.json"
-
-def save_error_file(task_dir, error_message):
-    os.makedirs(task_dir, exist_ok=True)
-    error_file = os.path.join(task_dir, "error.log")
-    with open(error_file, "a") as f:
-        f.write(error_message + "\n")
-
-def load_input_json(json_file:str):
-    with open(json_file, 'r') as f:
-        data = json.load(f)
-    return data
-
-def load_input_txt(txt_file:str):
-    with open(txt_file, 'r') as f:
-        data = f.read()
-    return data
-def save_plan_json(json_data,file):
-    dir_name = os.path.dirname(file)
-    print(f"Directory: {dir_name}")
-    os.makedirs(dir_name, exist_ok=True)
-    with open(file, 'w', encoding='utf-8') as f:
-        json.dump(json_data, f, indent=4, ensure_ascii=False)
-
-def save_result_json(json_data,task_dir):
-    os.makedirs(task_dir, exist_ok=True)
-    with open(f'{task_dir}/result.json', 'w') as f:
-        json.dump(json_data, f, indent=4)
-        
-        
-def get_image_media_type(image_data):
-    """
-    Detects the image media type based on the magic number in the binary data.
-    """
-    if image_data[:4] == b'\x89PNG':
-        return "image/png"
-    elif image_data[:2] == b'\xFF\xD8':
-        return "image/jpeg"
-    else:
-        raise ValueError("Unsupported image format")
 
 def preprocess_task(task, task_dir, plan_model):
     if plan_model == "claude":
@@ -881,7 +851,7 @@ def Execute_plan(plan, task, task_dir, characters={}, story="", mode=GENERATION_
         if Task == "t2v":
             # Generate video
             # In this step, we expand our content into video prompt, conditioned on the overall storyline.
-            video_prompt = video_prompts[str(step['Step'])] if str(step['Step']) in video_prompts else conditional_video_prompt(step['Input_text'], story)
+            video_prompt = video_prompts[str(step['Step'])] if str(step['Step']) in video_prompts else step['Input_text']
             step['Input_text'] = video_prompt
             video_prompts[str(step['Step'])] = video_prompt
             
@@ -903,7 +873,7 @@ def Execute_plan(plan, task, task_dir, characters={}, story="", mode=GENERATION_
         elif Task == "i2v" or Task == "r2v":
             
             # In this step, we expand our content into video prompt, conditioned on the overall storyline.
-            video_prompt = video_prompts[str(step['Step'])] if str(step['Step']) in video_prompts else conditional_video_prompt(step['Input_text'], story, i2v=True)
+            video_prompt = video_prompts[str(step['Step'])] if str(step['Step']) in video_prompts else step['Input_text']
             step['Input_text'] = video_prompt
             video_prompts[str(step['Step'])] = video_prompt
             
@@ -960,6 +930,119 @@ def MessageToJson(message):
         "content": message.content
     }
 
+# generate single task
+def generate_single_task(task, task_dir):
+    print(f"Processing Task: {task.get('id', '0000')}")
+    
+    plan_file = f"{task_dir}/plan_{task.get('id', '0000')}.json"
+    result_file = f"{task_dir}/result.json"
+    error_file = f"{task_dir}/error.log"
+    characters_file = f"{task_dir}/characters.json"
+    story_file = f"{task_dir}/story.txt"
+    assistant_response = None
+    os.makedirs(task_dir, exist_ok=True)
+    if os.path.exists(result_file) and not os.path.exists(error_file):
+        print(f"Skipping task {task.get('id', '0000')}, result file already exists")
+        raise ValueError(f"Skipping task {task.get('id', '0000')}, result file already exists")
+    if glob.glob(f"{task_dir}/final_video_*"):
+        raise ValueError(f"Skipping task {task.get('id', '0000')}, final video already exists")
+    if os.path.exists(characters_file):
+        characters = load_input_json(characters_file)
+    if os.path.exists(story_file):
+        story = load_input_txt(story_file)
+    if os.path.exists(plan_file):
+        print(f"Skipping task {task.get('id', '0000')} plan generation, plan file already exists, directly extract from it")
+        plan = load_input_json(plan_file)
+        response_text = json.dumps(plan)
+        if not isinstance(plan, list):
+            error_message = f"Error: Plan file is not a list: {plan_file}"
+            print(error_message)
+            save_error_file(task_dir, error_message)
+            raise ValueError(error_message)
+    else:
+        messages, Dict, Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
+        characters = {}
+        for step, (step_name, step_prompt) in enumerate(PREPRODUCTION_PROMPTS.items()):
+            print("-"*100)
+            print(f"Step {step+1}: {step_name}")
+            print("-"*100)
+            if assistant_response is not None:
+                messages.append(assistant_response)
+            if step == 0:
+                messages.append({"role": "user", "content": f"{step_name}: {step_prompt} \n\n {messages.pop(-1)['content'][-1]['text']}"})
+            else:
+                messages.append({"role": "user", "content": f"{step_name}: {step_prompt} \n\n "})
+            
+            try: 
+                completion = OpenAIClient.chat.completions.create(
+                    # model='qwen2.5-vl-7b-instruct',
+                    model='claude-3-7-sonnet-20250219',
+                    response_format={'type' : 'json'} if step_name == "Detailed Storyboarding" else None,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=4096
+                )
+                assistant_response = completion.choices[0].message
+                response_text = completion.choices[0].message.content
+                # remove <think> tag in deepseek-r1 response
+                if "</think>" in response_text:
+                    response_text = response_text.split("</think>")[-1]
+                if '请求错误' in response_text:
+                    raise ValueError("请求错误")
+            except Exception as e:
+                print(f"Error in claude, switching to openai: {str(e)}") 
+                completion = ClaudeClient.chat.completions.create(
+                    # model = "qwen2.5-vl-7b-instruct",
+                    model = 'gpt-4.5-preview-2025-02-27',
+                    response_format={'type' : 'json'} if step_name == "Detailed Storyboarding" else None,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=4096
+                )
+                assistant_response = completion.choices[0].message
+                response_text = completion.choices[0].message.content
+            if assistant_response and step_name == "Casting Extraction":
+                print("正在提取角色中...")
+                try:
+                    characters = extract_json_from_response(response_text)
+                    characters = json.loads(characters)
+                except Exception as e:
+                    raise ValueError(f"Error extracting characters from completion {completion}")
+                    # fix possible json format error
+                characters = transform_character_descriptions(characters)
+                save_plan_json(characters, f"{task_dir}/characters.json")
+            if assistant_response and step_name == "Script Writing":
+                print("正在提取分镜脚本中...")
+                story = response_text
+                with open(f"{task_dir}/story.txt", "w") as f:
+                    f.write(story)
+            print(f"Agent Response: {response_text}")
+            print("-"*100)
+            if '请求错误' in response_text:
+                print(completion)
+        try:
+            extract_plan_from_response(response_text, plan_file, characters=characters)
+        except Exception as e:
+            print(f"Error extracting plan: {str(e)}")
+            print(completion)
+            raise ValueError("Error extracting plan")
+        plan = load_input_json(plan_file)
+        if not isinstance(plan, list):
+            print(f"Error: Plan file is not a list: {plan_file}")
+            error_message = f"Error: Plan file is not a list: {plan_file}"
+            save_error_file(task_dir, error_message)
+            raise ValueError(error_message)
+        # Replace the image placeholders in the plan with the actual image content
+        print(Dict_for_plan)
+        # plan = replace_image_placeholders_in_plan(plan, Dict_for_plan)
+        # save_plan_json(plan, plan_file)
+        # save_plan_json(characters, f"{task_dir}/characters.json")
+        # Save Dict_for_plan to a file
+        
+        save_plan_json(Dict_for_plan, f"{task_dir}/Dict_for_plan.json")
+        save_plan_json([MessageToJson(m) for m in messages], f"{task_dir}/messages.json")
+    return plan, story, characters
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("--input_json", type=str, help="Input json file")
@@ -973,163 +1056,16 @@ def main():
     
     data = load_input_json(input_json)
     for task in data:
-
-        print(f"Processing Task: {task.get('id', '0000')}")
-        task_dir = f"{outdir}/Task_{task.get('id', '0000')}"
-        plan_file = f"{task_dir}/plan_{task.get('id', '0000')}.json"
-        result_file = f"{task_dir}/result.json"
-        error_file = f"{task_dir}/error.log"
-        characters_file = f"{task_dir}/characters.json"
-        story_file = f"{task_dir}/story.txt"
-        assistant_response = None
-        os.makedirs(task_dir, exist_ok=True)
-        if os.path.exists(result_file) and not os.path.exists(error_file):
-            print(f"Skipping task {task.get('id', '0000')}, result file already exists")
+        task_dir = os.path.join(outdir, f"Task_{task.get('id', '0000')}")
+        try:
+            plan, story, characters = generate_single_task(task, task_dir)
+        except:
+            print(f"Error generating task {task.get('id', '0000')}, skipping...")
             continue
-        if glob.glob(f"{task_dir}/final_video_*"):
-            continue
-        if os.path.exists(characters_file):
-            characters = load_input_json(characters_file)
-        if os.path.exists(story_file):
-            story = load_input_txt(story_file)
-        if os.path.exists(plan_file):
-            print(f"Skipping task {task.get('id', '0000')} plan generation, plan file already exists, directly extract from it")
-            plan = load_input_json(plan_file)
-            response_text = json.dumps(plan)
-            if not isinstance(plan, list):
-                error_message = f"Error: Plan file is not a list: {plan_file}"
-                print(error_message)
-                save_error_file(task_dir, error_message)
-        else:
-            messages, Dict, Dict_for_plan = preprocess_task(task, task_dir, plan_model="openai")
-            characters = {}
-            for step, (step_name, step_prompt) in enumerate(PREPRODUCTION_PROMPTS.items()):
-                print("-"*100)
-                print(f"Step {step+1}: {step_name}")
-                print("-"*100)
-                if assistant_response is not None:
-                    messages.append(assistant_response)
-                if step == 0:
-                    messages.append({"role": "user", "content": f"{step_name}: {step_prompt} \n\n {messages.pop(-1)['content'][-1]['text']}"})
-                else:
-                    messages.append({"role": "user", "content": f"{step_name}: {step_prompt} \n\n "})
-                
-                try: 
-                    completion = OpenAIClient.chat.completions.create(
-                        # model='qwen2.5-vl-7b-instruct',
-                        model='claude-3-7-sonnet-20250219',
-                        response_format={'type' : 'json'} if step_name == "Detailed Storyboarding" else None,
-                        messages=messages,
-                        temperature=0.7,
-                        max_tokens=4096
-                    )
-                    assistant_response = completion.choices[0].message
-                    response_text = completion.choices[0].message.content
-
-                    # remove <think> tag in deepseek-r1 response
-                    if "</think>" in response_text:
-                        response_text = response_text.split("</think>")[-1]
-                    if '请求错误' in response_text:
-                        raise ValueError("请求错误")
-
-                except Exception as e:
-                    print(f"Error in claude, switching to openai: {str(e)}") 
-
-                    completion = ClaudeClient.chat.completions.create(
-                        # model = "qwen2.5-vl-7b-instruct",
-                        model = 'gpt-4.5-preview-2025-02-27',
-                        response_format={'type' : 'json'} if step_name == "Detailed Storyboarding" else None,
-                        messages=messages,
-                        temperature=0.7,
-                        max_tokens=4096
-                    )
-                    assistant_response = completion.choices[0].message
-                    response_text = completion.choices[0].message.content
-                if assistant_response and step_name == "Casting Extraction":
-                    print("正在提取角色中...")
-                    try:
-                        characters = extract_json_from_response(response_text)
-                        characters = json.loads(characters)
-                    except Exception as e:
-                        raise ValueError(f"Error extracting characters from completion {completion}")
-                        # fix possible json format error
-
-                    characters = transform_character_descriptions(characters)
-                    save_plan_json(characters, f"{task_dir}/characters.json")
-                if assistant_response and step_name == "Script Writing":
-                    print("正在提取分镜脚本中...")
-                    story = response_text
-                    with open(f"{task_dir}/story.txt", "w") as f:
-                        f.write(story)
-
-                print(f"Agent Response: {response_text}")
-                print("-"*100)
-                if '请求错误' in response_text:
-                    print(completion)
-
-            try:
-                extract_plan_from_response(response_text, plan_file, characters=characters)
-            except Exception as e:
-                print(f"Error extracting plan: {str(e)}")
-                print(completion)
-                raise ValueError("Error extracting plan")
-            plan = load_input_json(plan_file)
-
-            if not isinstance(plan, list):
-                print(f"Error: Plan file is not a list: {plan_file}")
-                error_message = f"Error: Plan file is not a list: {plan_file}"
-                save_error_file(task_dir, error_message)
-                continue
-            # Replace the image placeholders in the plan with the actual image content
-            print(Dict_for_plan)
-            # plan = replace_image_placeholders_in_plan(plan, Dict_for_plan)
-            # save_plan_json(plan, plan_file)
-            # save_plan_json(characters, f"{task_dir}/characters.json")
-            # Save Dict_for_plan to a file
-            
-            save_plan_json(Dict_for_plan, f"{task_dir}/Dict_for_plan.json")
-            save_plan_json([MessageToJson(m) for m in messages], f"{task_dir}/messages.json")
         if  not args.dry_run:
             Execute_plan(plan,task, task_dir, characters=characters, story=story, mode=args.mode)
         else:
             print("dry run, skipping execute")
-        
-        # cnt = 0
-        # while os.path.exists(error_file):
-        #     cnt += 1
-        #     if cnt > 2:
-        #         with open(f"{task_dir}/skip", 'w') as f:
-        #             f.write("skip")
-        #         break
-        #     with open(f"{task_dir}/error.log", 'r') as f:
-        #         error_message = f.read()
-        #     os.remove(f"{task_dir}/error.log")
-        #     Query = task["Query"]
-        #     task_content = ""
-        #     for seg in Query:
-        #         if seg['type'] == "text":
-        #             task_content += seg['content']
-        #     structure = f"{extract_structure(task)['Answer_str']}"
-        #     # print(response_text)
-        #     response_text = double_check(task_dir,task_content,structure,response_text,error_message)
-        #     try:
-        #         extract_plan_from_response(response_text, plan_file)
-        #     except Exception as e:
-        #         print(f"Error extracting plan: {str(e)}")
-        #         with open(f"{task_dir}/error.log", 'a') as f:
-        #             f.write(f"Error extracting plan: {str(e)}")
-        #             break
-        #     plan = load_input_json(plan_file)
-        #     if not isinstance(plan, list):
-        #         print(f"Error: Plan file is not a list: {plan_file}")
-        #         error_message = f"Error: Plan file is not a list: {plan_file}"
-        #         save_error_file(task_dir, error_message)
-        #         continue
-        #     # Replace the image placeholders in the plan with the actual image content
-        #     Dict_for_plan = load_input_json(f"{task_dir}/Dict_for_plan.json")
-        #     plan = replace_image_placeholders_in_plan(plan, Dict_for_plan)
-        #     save_plan_json(plan, plan_file)
-        #     Execute_plan(plan,task, task_dir)
 
 
 if __name__ == "__main__":

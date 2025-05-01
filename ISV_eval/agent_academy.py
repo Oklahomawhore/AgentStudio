@@ -18,7 +18,7 @@ from movie_review_commission import MovieReviewCommission
 from agents import AudienceAgent, CulturalExpertAgent, CriticAgent
 from eval import calc_final_score
 from human_in_loop import HumanAnnotator
-from util import format_time_to_hhmmss, cut_video_into_scenes, QUESTION_TEMPLATE
+from ISV_eval.util import format_time_to_hhmmss, cut_video_into_scenes, QUESTION_TEMPLATE
 from prompt_datasets import EnhancedVideoStorytellingDataset, QuestionType, StoryQuestions
 
 plt.rcParams['font.family'] = 'SimHei'
@@ -101,7 +101,16 @@ def process_question_v3(questions: StoryQuestions, video_path: str) -> List[Tupl
         tasks.append((context, QUESTION_TEMPLATE.MULTIPLE_CHOICE.format(question.to_dict()['question'], question.to_dict()['options'])))
     return tasks
 
-async def get_score(args, video_path, processed_questions, method='agent', threshold=30.0, min_scene_length=15, output_dir='eval_results', task_id=None, ):
+async def get_score(video_path, 
+                    processed_questions, 
+                    method='agent', 
+                    threshold=30.0, 
+                    min_scene_length=15, 
+                    output_dir='eval_results', 
+                    task_id=None, 
+                    batch=False, 
+                    local_model=None, 
+                    local_processor=None):
     """
     Get the score of the video
 
@@ -175,7 +184,8 @@ async def get_score(args, video_path, processed_questions, method='agent', thres
 
         agents = [critic, cultural_expert, audience_rep]
 
-        commission = MovieReviewCommission(agents=agents, video_path=video_path, save_path=os.path.join(output_dir, "agent_log"),)
+        commission = MovieReviewCommission(agents=agents, video_path=video_path, save_path=os.path.join(output_dir, "agent_log"),local_model=local_model, local_processor=local_processor)
+    
     elif method == 'human':
         commission = HumanAnnotator(name="wangshu", save_dir=os.path.join(output_dir, "human_annotations"), port=8001)
     # Load question template
@@ -188,12 +198,12 @@ async def get_score(args, video_path, processed_questions, method='agent', thres
     tasks = []
 
     for context, question in processed_questions:
-        tasks.append(asyncio.create_task(commission.do_questionare(question=question, context=context, batch=args.batch)))
+        tasks.append(asyncio.create_task(commission.do_questionare(question=question, context=context, batch=batch)))
     
     await asyncio.gather(*tasks)
 
     # await process_questions(commission, questions, video_path, scenes, batch=True)
-    if args.batch:
+    if batch:
         await commission.do_batch_questionare()
     # Save question results
     answer_list = commission.get_questionnaire_results()
@@ -218,7 +228,7 @@ class PromptDataset:
     def __len__(self):
         return len(self.data)
 
-async def get_score_for_task(args, results_dir, prompt_json, questions_dir, dataset_name='NovelConditionedVGen',model_name=None, method='agent', threshold=30.0, min_scene_length=15, output_dir='eval_results'):
+async def get_score_for_task(results_dir, prompt_json, questions_dir, dataset_name='NovelConditionedVGen',model_name=None, method='agent', threshold=30.0, min_scene_length=15, output_dir='eval_results', batch=False):
     """
     Get the score of the video
 
@@ -251,7 +261,7 @@ async def get_score_for_task(args, results_dir, prompt_json, questions_dir, data
         video_paths = glob.glob(os.path.join(video_dir, "*.mp4"))
         questions = dataset.get_story_questions(i)
         processed_questions = process_question_v3(questions, video_paths[0])
-        await get_score(args, video_paths[0], processed_questions, method=method, threshold=threshold, min_scene_length=min_scene_length, output_dir=output_dir, task_id=f"Task_{dataset[i]['id']}")
+        await get_score(video_paths[0], processed_questions, method=method, threshold=threshold, min_scene_length=min_scene_length, output_dir=output_dir, task_id=f"Task_{dataset[i]['id']}", batch=batch)
     return None
 
 async def main():
@@ -267,7 +277,7 @@ async def main():
     parser.add_argument("--batch", action='store_true', help="Use batch processing for questions")
     args = parser.parse_args()
     if args.video_path:
-        score = await get_score(args.video_path, method=args.method, output_dir=args.output_dir)
+        score = await get_score(args.video_path, method=args.method, output_dir=args.output_dir,batch=args.batch)
         print(f"Video score: {score}")
     elif args.results_dir:
         score = await get_score_for_task(args, args.results_dir, args.prompt_json, args.questions_dir, dataset_name=args.dataset_name, model_name=args.model_name, method=args.method, output_dir=args.output_dir)

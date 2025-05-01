@@ -18,7 +18,7 @@ from decord import VideoReader, cpu
 import hashlib
 import requests
 
-from util import inference_batch
+from ISV_eval.util import inference_batch
 
 model = None
 processor = None
@@ -38,7 +38,7 @@ def load_model_and_processor():
         print(f"Model and processor loaded successfully. Model on device {model.device}")
     return model, processor
 
-from util import prepare_message_for_vllm
+from ISV_eval.util import prepare_message_for_vllm
 dotenv.load_dotenv()
 
 from moviepy import VideoFileClip
@@ -81,9 +81,9 @@ def get_video_frames(video_path, num_frames=128, cache_dir='tmp'):
     
     return video_file_path, frames, timestamps
 
-def inference(video_path=None, prompt: List[Dict] | str=None, max_new_tokens=2048, total_pixels=20480 * 28 * 28, min_pixels=16 * 28 * 28):
-    global model, processor
-    model, processor = load_model_and_processor()
+def inference(model, processor, video_path=None, prompt: List[Dict] | str=None, max_new_tokens=2048, total_pixels=20480 * 28 * 28, min_pixels=16 * 28 * 28):
+    if not model or not processor:
+        model, processor = load_model_and_processor()
     if isinstance(prompt, str):
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
@@ -103,7 +103,7 @@ def inference(video_path=None, prompt: List[Dict] | str=None, max_new_tokens=204
     text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     image_inputs, video_inputs, video_kwargs = process_vision_info([messages], return_video_kwargs=True)
     fps_inputs = video_kwargs['fps']
-    print("video input:", video_inputs[0].shape)
+    # print("video input:", video_inputs[0].shape)
     num_frames, _, resized_height, resized_width = video_inputs[0].shape
     print("num of video tokens:", int(num_frames / 2 * resized_height / 28 * resized_width / 28))
     inputs = processor(text=[text], images=image_inputs, videos=video_inputs, padding=True, return_tensors="pt", **video_kwargs)
@@ -111,7 +111,7 @@ def inference(video_path=None, prompt: List[Dict] | str=None, max_new_tokens=204
 
     output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens)
     generated_ids = [output_ids[len(input_ids):] for input_ids, output_ids in zip(inputs.input_ids, output_ids)]
-    print(f"shape: {len(generated_ids)} {generated_ids}")
+    # print(f"shape: {len(generated_ids)} {generated_ids}")
     output_text = processor.batch_decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
     return output_text[0]
 def inference_local(video_path, prompt):

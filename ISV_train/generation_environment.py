@@ -7,14 +7,19 @@ import logging
 import subprocess
 from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass
+import dotenv
 
 import sys
 sys.path.append("/data/wangshu/wangshu_code/ISG")
+sys.path.append("/data/wangshu/wangshu_code/ISG/ISG_agent")
+sys.path.append("/data/wangshu/wangshu_code/ISG/ISV_eval")
 from ISG_agent.PlanningAgentV2 import Execute_plan, double_check, extract_structure
 from ISG_agent.util import GENERATION_MODE
-from ISV_eval.agent_academy import get_score, process_question_v3
+from ISV_eval.agent_academy import get_score, process_question_v3, get_score_for_task
 from ISV_eval.eval_instance import ResponseEvaluator
+from ISV_eval.prompt_datasets import EnhancedVideoStorytellingDataset
 
+from ISV_eval.eval_instance import reprompt_llm
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -81,8 +86,11 @@ class GenerationEnvironment:
         self, 
         base_dir: str = "/data/wangshu/wangshu_code/ISG",
         output_dir: str = "results", 
+        prompt_json: str = None,
         questions_dir: str = "/data/wangshu/wangshu_code/ISG/ISV_eval/NovelConditionedVGen/instance_questions",
-        generation_mode: str = GENERATION_MODE.T2V
+        generation_mode: str = GENERATION_MODE.T2V,
+        model = None,
+        processor = None
     ):
         """
         初始化生成环境
@@ -99,6 +107,9 @@ class GenerationEnvironment:
         os.makedirs(self.output_dir, exist_ok=True)
         self.questions_dir = questions_dir
         self.generation_mode = generation_mode
+        self.prompt_json = prompt_json
+        self.model = model
+        self.processor = processor
         
         # 环境状态
         self.current_task = None
@@ -112,7 +123,7 @@ class GenerationEnvironment:
         self.start_time = 0
         logger.debug("生成环境初始化完成")
         
-    def reset(self, task: Dict) -> EnvObservation:
+    def reset(self, task: Dict, task_dir: str) -> EnvObservation:
         """
         重置环境状态，准备新任务
         
@@ -126,7 +137,7 @@ class GenerationEnvironment:
         logger.info(f"重置环境，开始处理任务 {task_id}")
         
         self.current_task = task
-        self.current_task_dir = os.path.join(self.output_dir, f"Task_{task_id}")
+        self.current_task_dir = task_dir or os.path.join(self.output_dir, f"Task_{task_id}")
         os.makedirs(self.current_task_dir, exist_ok=True)
         
         self.text_history = f"开始处理任务 {task_id}\n"
@@ -167,6 +178,7 @@ class GenerationEnvironment:
             raise ValueError("环境未初始化，请先调用reset()")
         
         task_id = self.current_task.get("id", "0000")
+        self.plan = plan
         logger.info(f"执行环境步进，任务ID: {task_id}, 计划步骤数: {len(plan) if plan else '未提供'}")
         execution_time = time.time() - self.start_time
         
@@ -192,19 +204,10 @@ class GenerationEnvironment:
                 eval_report=self._get_eval_report()
             )
         
-        # 处理计划
-        if plan is not None:
-            # 保存新计划
-            logger.info(f"保存新的计划到 {self.plan_file}")
-            self._save_plan(plan)
-            self.text_history += f"已保存新的计划到 {self.plan_file}\n"
-        else:
-            # 尝试加载现有计划
-            logger.info(f"尝试加载现有计划: {self.plan_file}")
-            self._load_plan()
+        
             
         # 如果没有有效计划，返回中间状态
-        if self.plan is None:
+        if self.plan is None or type(self.plan) is not list or len(self.plan) == 0:
             logger.warning("没有有效的执行计划，请提供计划")
             self.text_history += "没有有效的执行计划，请提供计划\n"
             return EnvObservation(
@@ -377,50 +380,34 @@ class GenerationEnvironment:
             
             logger.debug(f"找到问题文件: {question_path}")
             
-            # 准备问题
-            class DummyQuestion:
-                def __init__(self):
-                    self.fill_in_questions = []
-                    self.yes_no_questions = []
-                    self.multiple_choice_questions = []
-                
-                def to_dict(self):
-                    return {'question': '', 'answer': '', 'options': {}}
-            
             # 加载问题文件
             with open(question_path, 'r', encoding='utf-8') as f:
                 questions = json.load(f)
             
             # 构建问题对象
-            dummy_questions = DummyQuestion()
-            if 'fill_in_the_blank' in questions:
-                dummy_questions.fill_in_questions = questions['fill_in_the_blank']
-                logger.debug(f"加载填空题: {len(dummy_questions.fill_in_questions)}道")
-            if 'yes_no' in questions:
-                dummy_questions.yes_no_questions = questions['yes_no']
-                logger.debug(f"加载是非题: {len(dummy_questions.yes_no_questions)}道")
-            if 'multiple_choice' in questions:
-                dummy_questions.multiple_choice_questions = questions['multiple_choice']
-                logger.debug(f"加载多选题: {len(dummy_questions.multiple_choice_questions)}道")
+            dataset = EnhancedVideoStorytellingDataset(self.prompt_json, self.questions_dir)
+            questions = dataset.get_story_questions(int(task_id))
             
             # 处理问题
             logger.debug("处理问题中...")
-            processed_questions = process_question_v3(dummy_questions, video_path)
+            processed_questions = process_question_v3(questions, video_path)
             logger.debug(f"处理完成，共{len(processed_questions)}个问题")
             
             # 运行异步评估
             logger.info("启动异步评估...")
             result_file = asyncio.run(get_score(
-                type('Args', (), {'batch': True}), 
                 video_path, 
                 processed_questions,
-                output_dir=self.current_task_dir
+                output_dir=os.path.join(self.current_task_dir, 'review'),
+                local_model=self.model,
+                local_processor=self.processor,
+                task_id=f"Task_{task_id}",
             ))
             
             if result_file and os.path.exists(result_file):
                 logger.debug(f"评估结果文件: {result_file}")
                 # 评估回答
-                evaluator = ResponseEvaluator(result_file, self.questions_dir)
+                evaluator = ResponseEvaluator(result_file, self.questions_dir, reprompt_llm=reprompt_llm)
                 scores = evaluator.evaluate_all()
                 self.eval_score = scores['aggregate']
                 logger.info(f"评估完成: 填空题={scores['fill_in_blank']:.2f}, "

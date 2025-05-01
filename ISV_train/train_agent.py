@@ -6,14 +6,16 @@ import wandb
 import numpy as np
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
+import random
 
 import transformers
 from transformers import (
-    AutoModelForCausalLM,
+    AutoModelForImageTextToText,
     AutoTokenizer,
     BitsAndBytesConfig,
     HfArgumentParser,
-    TrainingArguments
+    TrainingArguments,
+    AutoProcessor
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
@@ -22,6 +24,9 @@ from trl.core import LengthSampler
 from generation_environment import GenerationEnvironment
 from accelerate import Accelerator
 from accelerate.utils import DistributedType
+
+from ISG_agent.PlanningAgentV2 import generate_single_task, Execute_plan, extract_character_from_content, transform_character_descriptions, extract_plan_from_response, extract_json_from_response
+from ISG_agent.util import save_plan_json, load_input_json
 
 # 配置日志
 import logging
@@ -42,11 +47,11 @@ class ScriptArguments:
     PPO训练的参数
     """
     model_name_or_path: str = field(
-        default="Qwen/Qwen2.5-VL-32B-AWQ", 
+        default="Qwen/Qwen2.5-VL-32B-Instruct-AWQ", 
         metadata={"help": "要训练的模型名称或路径"}
     )
     dataset_path: str = field(
-        default="/data/wangshu/wangshu_code/ISG/ISV_eval/NovelConditionedVGen/instance_tasks.json",
+        default="/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json",
         metadata={"help": "任务数据集路径"}
     )
     output_dir: str = field(
@@ -74,7 +79,7 @@ class ScriptArguments:
         metadata={"help": "学习率"}
     )
     batch_size: int = field(
-        default=4,
+        default=1,
         metadata={"help": "训练批次大小"}
     )
     mini_batch_size: int = field(
@@ -122,12 +127,20 @@ class ScriptArguments:
         metadata={"help": "生成模式: t2v, i2v, r2v"}
     )
     max_length: int = field(
-        default=2048,
+        default=4096,
         metadata={"help": "生成的最大长度"}
     )
     min_length: int = field(
-        default=512,
+        default=2048,
         metadata={"help": "生成的最小长度"}
+    )
+    plan_template: str = field(
+        default="/data/wangshu/wangshu_code/ISG/ISG_agent/Prompt/plan_template.json",
+        metadata={"help": "生成计划的模板"}
+    )
+    train_val_ratio: float = field(
+        default=0.8,
+        metadata={"help": "训练集占总数据的比例"}
     )
 
 def init_wandb(args):
@@ -167,19 +180,15 @@ def prepare_model_and_tokenizer(args):
     )
     
     # 加载分词器
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.model_name_or_path,
-        trust_remote_code=True,
-        use_fast=False
-    )
-    tokenizer.pad_token = tokenizer.eos_token
+    processsor = AutoProcessor.from_pretrained(args.model_name_or_path)
     
     # 加载基础模型
-    model = AutoModelForCausalLM.from_pretrained(
+    model = AutoModelForImageTextToText.from_pretrained(
         args.model_name_or_path,
-        quantization_config=bnb_config,
         device_map="auto",
-        trust_remote_code=True
+        trust_remote_code=True,
+        torch_dtype=torch.float16,
+        # attn_implementation="flash_attention_2",
     )
     
     # 准备模型进行8位训练
@@ -207,8 +216,16 @@ def prepare_model_and_tokenizer(args):
     logger.info(f"可训练参数: {trainable_params:,} ({trainable_params / total_params:.2%})")
     logger.info(f"总参数: {total_params:,}")
     
-    return model, tokenizer
-
+    return model, processsor
+def same_seed(seed: int):
+    """设置随机种子"""
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    transformers.set_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    logger.info(f"设置随机种子: {seed}")
 def train(args):
     """主训练函数"""
     logger.info("开始训练准备...")
@@ -217,16 +234,26 @@ def train(args):
     init_wandb(args)
     
     # 设置随机种子
-    transformers.set_seed(args.seed)
+    same_seed(args.seed)
     
     # 加载任务数据
     dataset = load_dataset(args.dataset_path)
     
+    # 训练/验证集划分
+    num_tasks = len(dataset)
+    indices = list(range(num_tasks))
+    np.random.shuffle(indices)
+    split_idx = int(num_tasks * args.train_val_ratio)
+    train_indices = indices[:split_idx]
+    val_indices = indices[split_idx:]
+    
+    logger.info(f"总任务数: {num_tasks}, 训练集大小: {len(train_indices)}, 验证集大小: {len(val_indices)}")
+    
     # 准备模型和分词器
-    model, tokenizer = prepare_model_and_tokenizer(args)
+    model, processor = prepare_model_and_tokenizer(args)
     
     # 初始化分布式训练
-    accelerator = Accelerator()
+    # accelerator = Accelerator()
     
     # 创建输出目录
     os.makedirs(args.output_dir, exist_ok=True)
@@ -235,29 +262,32 @@ def train(args):
     ppo_config = PPOConfig(
         model_name=args.model_name_or_path,
         learning_rate=args.learning_rate,
-        batch_size=args.batch_size,
-        mini_batch_size=args.mini_batch_size,
+        batch_size=args.batch_size * 5,
+        mini_batch_size=args.mini_batch_size * 5,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         ppo_epochs=args.ppo_epochs,
         max_grad_norm=0.5,
         optimize_device_cache=True,
         seed=args.seed,
-        optimize_cuda_cache=True
+        optimize_cuda_cache=True,
     )
     
     # 初始化PPO训练器
     ppo_trainer = PPOTrainer(
         config=ppo_config,
         model=model,
-        tokenizer=tokenizer,
-        accelerator=accelerator
+        tokenizer=processor.tokenizer,
     )
     
     # 创建环境
     env = GenerationEnvironment(
         base_dir="/data/wangshu/wangshu_code/ISG",
         output_dir=args.env_output_dir,
-        generation_mode=args.generation_mode
+        generation_mode=args.generation_mode,
+        prompt_json="/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json",
+        questions_dir="/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/instance_questions_deepseek",
+        model=model,
+        processor=processor,
     )
     
     # 创建长度采样器
@@ -267,99 +297,124 @@ def train(args):
     global_step = 0
     best_reward = -float('inf')
 
+    plan_template = json.load(open(args.plan_template, 'r', encoding='utf-8'))
+    system_prompt = "You are a creative and storytelling-driven video generation agent. " \
+    "Your responsibility is to design the complete workflow for producing short-form video content — " \
+    "from concept planning, script writing, casting design, to detailed storyboarding."
+
     logger.info("开始训练循环...")
-    
+
+    generation_kwargs = {
+        "min_length": -1,
+        "top_k": 0.0,
+        "top_p": 1.0,
+        "do_sample": True,
+    }
+    batch_indices = np.random.choice(train_indices, args.batch_size, replace=False)
     while global_step < args.max_steps:
-        # 采样任务批次
-        task_indices = np.random.choice(len(dataset), args.batch_size, replace=False)
-        tasks_batch = [dataset[i] for i in task_indices]
+        # 从训练集中采样任务批次
         
+        tasks_batch = [dataset[i] for i in batch_indices]
+        logger.info(f"global step {global_step} 采样训练任务批次: {batch_indices}")
         # 准备查询
-        queries = []
-        for task in tasks_batch:
-            task_text = f"任务ID: {task.get('id', '0000')}\n"
-            if "Query" in task:
-                for item in task["Query"]:
-                    if item["type"] == "text":
-                        task_text += item["content"] + "\n"
-                    elif item["type"] == "image":
-                        task_text += f"[图片: {item['content']}]\n"
-            task_text += (
-                "\n请为这个视频生成任务创建详细的分镜脚本计划。"
-                "计划应该包括每一个步骤的详细描述，以便于生成高质量的视频。"
-                "输出格式应为JSON数组，其中每个对象代表一个步骤，包含Step、Task、Input_text等关键字段。"
-            )
-            queries.append(task_text)
-        
-        # 编码查询
-        query_tensors = [tokenizer(query, return_tensors="pt").input_ids.to(ppo_trainer.accelerator.device) for query in queries]
-        
-        # 生成响应
-        response_tensors = []
-        for query in query_tensors:
-            gen_len = length_sampler()
-            with torch.no_grad():
-                response = ppo_trainer.generate(query, max_new_tokens=gen_len)
-                response_tensors.append(response.squeeze())
-        
-        # 解码响应
-        batch_responses = []
-        for i, (query, response) in enumerate(zip(query_tensors, response_tensors)):
-            decoded_response = tokenizer.decode(response[query.shape[1]:], skip_special_tokens=True)
-            batch_responses.append(decoded_response)
-            
-            logger.debug(f"任务 {i} 生成的响应长度: {len(decoded_response)} 字符")
+        query_tensors = [] # bs * step_len, seq_len
+        response_tensors = [] # bs * step_len, seq_len
+        batch_responses = [] # bs * step_len, seq_len
+        if os.path.exists(os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt")):
+            logger.info(f"加载中间结果: {os.path.join(args.env_output_dir, f'intermediate_{global_step}.pt')}")
+            intermediate = torch.load(os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt"), weights_only=False)
+            query_tensors = intermediate["query_tensors"]
+            response_tensors = intermediate["response_tensors"]
+            batch_responses = intermediate["batch_responses"]
+        else:
+            for i, task in enumerate(tasks_batch):
+                task_text = task["Query"][0]["content"]
+                logger.info(f"开始任务 {task['id']} 的计划生成")
+                assistant_response = None
+                task_dir = os.path.join(args.env_output_dir, f"global_step_{global_step}", f"Task_{task['id']}")
+                os.makedirs(task_dir, exist_ok=True)
+                plan_file = os.path.join(task_dir, f"plan_{task.get('id', '0000')}.json")
+                messages = []
+                for step, (step_name, step_prompt) in enumerate(plan_template.items()):
+                    logger.info(f"正在处理步骤 {step_name}")
+                    if assistant_response is not None:
+                        messages.append({"role": "assistant", "content": [{"type": "text", "text": assistant_response}]})
+                    if step == 0:
+                        messages.append({"role": "system", "content": [{"type": "text", "text": system_prompt}]})
+                        messages.append({"role": "user", "content": [{"type": "text", "text" : f"{step_name}: {step_prompt} \n\n {task_text}"}]})
+                    else:
+                        messages.append({"role": "user", "content": [{"type":"text", "text" : f"{step_name}: {step_prompt} \n\n "}]})
+                    text = processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+                    inputs = processor(text=[text], padding=True, return_tensors="pt")
+                    inputs = inputs.to(ppo_trainer.accelerator.device)
+                    query_tensors.append(inputs.input_ids.squeeze()) 
+
+                    # 生成响应
+                    with torch.no_grad():
+                        response = ppo_trainer.generate(inputs.input_ids.squeeze(),generation_kwargs=generation_kwargs, length_sampler=length_sampler)
+
+                        response = response.squeeze()
+                        response_tensors.append(response)
+
+
+                    decoded_response = processor.decode(response[inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                    response_text = decoded_response
+                    assistant_response = decoded_response
+                    if assistant_response and step_name == "Casting Extraction":
+                        logger.info("正在提取角色中...")
+                        try:
+                            characters = extract_json_from_response(response_text)
+                            characters = json.loads(characters)
+                        except Exception as e:
+                            raise ValueError(f"Error extracting characters from completion {response_text}")
+                            # fix possible json format error
+                        characters = transform_character_descriptions(characters)
+                        save_plan_json(characters, f"{task_dir}/characters.json")
+                    if assistant_response and step_name == "Script Writing":
+                        logger.info("正在提取分镜脚本中...")
+                        story = response_text
+                        with open(f"{task_dir}/story.txt", "w") as f:
+                            f.write(story)
+
+                    # batch_responses.append(decoded_response)
+
+                    logger.debug(f"任务 {i} 生成的响应长度: {len(decoded_response)} 字符")
+                try:
+                    extract_plan_from_response(response_text, plan_file, characters=characters)
+                except Exception as e:
+                    print(f"Error extracting plan: {str(e)}")
+                    print(response_text)
+                    # raise ValueError("Error extracting plan")
+                if os.path.exists(plan_file):
+                    plan = load_input_json(plan_file)
+                else:
+                    plan = None
+                batch_responses.append(plan)
+            # save intermediates
+            logger.info(f"保存中间结果到: {os.path.join(args.env_output_dir, f'intermediate_{global_step}.pt')}")
+            torch.save({"query_tensors": query_tensors, "response_tensors": response_tensors, "batch_responses": batch_responses}, os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt"))
         
         # 准备计划并运行环境
-        batch_rewards = []
-        for task, response_text in zip(tasks_batch, batch_responses):
-            # 尝试解析生成的计划JSON
-            try:
-                plan = json.loads(response_text)
-                if not isinstance(plan, list):
-                    plan = [plan]
-            except:
-                # 如果解析失败，尝试提取JSON部分
-                import re
-                json_match = re.search(r'\[[\s\S]*\]', response_text)
-                if json_match:
-                    try:
-                        plan = json.loads(json_match.group(0))
-                    except:
-                        # 失败时使用简单默认计划
-                        plan = [{
-                            "Step": 1,
-                            "Task": args.generation_mode,
-                            "Input_text": f"基于任务 {task.get('id')} 的视频场景",
-                            "Music_prompt": "",
-                            "TTS_prompt": "",
-                            "Input_images": [],
-                            "Output": "<WAIT>"
-                        }]
-                else:
-                    # 失败时使用简单默认计划
-                    plan = [{
-                        "Step": 1,
-                        "Task": args.generation_mode,
-                        "Input_text": f"基于任务 {task.get('id')} 的视频场景",
-                        "Music_prompt": "",
-                        "TTS_prompt": "",
-                        "Input_images": [],
-                        "Output": "<WAIT>"
-                    }]
-            
-            # 重置环境并执行计划
-            env.reset(task)
-            observation, reward, done, info = env.step(plan)
-            
-            batch_rewards.append(float(reward))
-            
-            logger.debug(f"任务 {task.get('id')}: 完成状态={done}, 奖励={reward:.4f}")
-            
-            if done and reward > 0:
-                # 保存有效计划示例
-                with open(os.path.join(args.output_dir, f"good_plan_{task.get('id')}.json"), 'w', encoding='utf-8') as f:
-                    json.dump(plan, f, ensure_ascii=False, indent=2)
+        batch_rewards = [] # (bs)
+        if os.path.exists(os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt")):
+            logger.info(f"加载奖励: {os.path.join(args.env_output_dir, f'intermediate_{global_step}_rewards.pt')}")
+            batch_rewards = torch.load(os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt"), weights_only=False)["batch_rewards"]
+        else:
+            for task, plan in zip(tasks_batch, batch_responses):
+
+                # 重置环境并执行计划
+                env.reset(task, task_dir=os.path.join(args.env_output_dir, f"global_step_{global_step}", f"Task_{task['id']}"))
+                observation, reward, done, info = env.step(plan)
+
+                batch_rewards.append(float(reward))
+
+                logger.debug(f"任务 {task.get('id')}: 完成状态={done}, 奖励={reward:.4f}")
+
+                if done and reward > 0:
+                    # 保存有效计划示例
+                    with open(os.path.join(args.output_dir, f"good_plan_{task.get('id')}.json"), 'w', encoding='utf-8') as f:
+                        json.dump(plan, f, ensure_ascii=False, indent=2)
+            torch.save({"batch_rewards": batch_rewards}, os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt"))
         
         # 计算平均奖励
         mean_reward = np.mean(batch_rewards) if batch_rewards else 0
@@ -374,9 +429,24 @@ def train(args):
                 "min_reward": min(batch_rewards) if batch_rewards else 0
             })
         
+        gamma = 0.9
+        # reward shaping: (bs) -> (bs * step_len) interleaved (r1, r1, r1, r1, r2, r2, r2, r2, ...)
+        batch_rewards = np.array(batch_rewards)
+        discounted_rewards = []
+        for reward in batch_rewards:
+            # 为每个步骤生成递减奖励
+            step_rewards = [torch.tensor(reward * (gamma ** (len(plan_template) - i)), dtype=torch.float32).to(ppo_trainer.accelerator.device) for i in range(len(plan_template))]
+            discounted_rewards.extend(step_rewards)
+        # batch_rewards = torch.tensor(discounted_rewards, dtype=torch.float32).to(ppo_trainer.accelerator.device)
+
+        logger.debug(f"query_tensors: {len(query_tensors)}, response_tensors: {len(response_tensors)}, discounted_rewards: {len(discounted_rewards)}")
+        logger.debug(f"query_tensors shape: {[t.shape for t in query_tensors]}")
+        logger.debug(f"response_tensors shape: {[t.shape for t in response_tensors]}")
+        logger.debug(f"discounted_rewards shape: {[t.shape for t in discounted_rewards]}")
+        
         # PPO更新
-        stats = ppo_trainer.step(query_tensors, response_tensors, batch_rewards)
-        ppo_trainer.log_stats(stats, batch_rewards, query_tensors, response_tensors)
+        stats = ppo_trainer.step(query_tensors, response_tensors, discounted_rewards)
+        ppo_trainer.log_stats(stats, discounted_rewards, query_tensors, response_tensors)
         
         # 更新全局步数
         global_step += 1
@@ -395,7 +465,20 @@ def train(args):
         # 评估
         if global_step % args.eval_steps == 0:
             logger.info(f"步骤 {global_step} - 运行评估...")
-            # 这里可以添加额外的评估逻辑
+            # 从验证集中采样进行评估
+            eval_batch_indices = np.random.choice(val_indices, min(args.batch_size, len(val_indices)), replace=False)
+            eval_tasks_batch = [dataset[i] for i in eval_batch_indices]
+            logger.info(f"评估任务批次: {eval_batch_indices}")
+            
+            # 这里可以添加验证集评估逻辑
+            # 例如：运行与训练相同的生成和奖励计算步骤，但不更新模型
+            
+            if args.use_wandb:
+                wandb.log({
+                    "global_step": global_step,
+                    "eval_step": True
+                    # 这里可以添加验证集的评估指标
+                })
     
     # 保存最终模型
     ppo_trainer.save_pretrained(os.path.join(args.output_dir, "final_model"))
