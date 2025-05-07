@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 设置环境变量
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,2,3,4,5,6,7
 export WANDB_API_KEY="e6e375cc17f1bdca8c5976d19fc8de07a33daeeb"  # 替换为你的wandb key
 
 # 项目路径
@@ -10,7 +10,7 @@ OUTPUT_DIR="$PROJECT_DIR/ISV_train/outputs/qwen2-5-vl-ppo-$(date +%Y%m%d-%H%M%S)
 mkdir -p $OUTPUT_DIR
 
 # 训练参数
-MODEL_NAME="Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
+MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct-AWQ"
 DATASET_PATH="$PROJECT_DIR/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json"
 BATCH_SIZE=1  # 全局批量大小
 LOCAL_BATCH=1  # 每个GPU的批量大小
@@ -38,6 +38,8 @@ python $PROJECT_DIR/ISV_train/train_agent.py \
     --lora_r 8 \
     --lora_alpha 32 \
     --lora_dropout 0.05 \
+    --use_qlora "False" \
+    --quantization_bits 4 \
     --lora_target_modules "q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj" \
     --wandb_project "video_agent_ppo" \
     --generation_mode "t2v" \

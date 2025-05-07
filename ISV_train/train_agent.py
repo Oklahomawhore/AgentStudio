@@ -17,7 +17,7 @@ from transformers import (
     TrainingArguments,
     AutoProcessor
 )
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
 from trl.core import LengthSampler
 
@@ -142,6 +142,14 @@ class ScriptArguments:
         default=0.8,
         metadata={"help": "训练集占总数据的比例"}
     )
+    use_qlora: bool = field(
+        default=False,
+        metadata={"help": "是否使用QLoRA进行训练"}
+    )
+    quantization_bits: int = field(
+        default=4,
+        metadata={"help": "量化位数，可选4或8"}
+    )
 
 def init_wandb(args):
     """初始化wandb日志记录"""
@@ -171,28 +179,40 @@ def prepare_model_and_tokenizer(args):
     """准备模型和分词器，应用量化和LoRA配置"""
     logger.info(f"加载模型和分词器: {args.model_name_or_path}")
     
-    # 量化配置
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=True,
-    )
-    
     # 加载分词器
-    processsor = AutoProcessor.from_pretrained(args.model_name_or_path)
+    processor = AutoProcessor.from_pretrained(args.model_name_or_path)
     
-    # 加载基础模型
-    model = AutoModelForImageTextToText.from_pretrained(
-        args.model_name_or_path,
-        device_map="auto",
-        trust_remote_code=True,
-        torch_dtype=torch.float16,
-        # attn_implementation="flash_attention_2",
-    )
-    
-    # 准备模型进行8位训练
-    model = prepare_model_for_kbit_training(model)
+    if args.use_qlora:
+        logger.info(f"使用QLoRA配置，量化位数: {args.quantization_bits}位")
+        # QLoRA量化配置
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=args.quantization_bits == 4, 
+            load_in_8bit=args.quantization_bits == 8,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+            llm_int8_enable_fp32_cpu_offload=True
+        )
+        
+        # 加载基础模型
+        model = AutoModelForImageTextToText.from_pretrained(
+            args.model_name_or_path,
+            device_map="auto",
+            trust_remote_code=True,
+            torch_dtype=torch.float16,
+            quantization_config=bnb_config,
+        )
+        
+        # 准备模型进行kbit训练
+        model = prepare_model_for_kbit_training(model)
+    else:
+        # 不使用量化，直接加载模型
+        model = AutoModelForImageTextToText.from_pretrained(
+            args.model_name_or_path,
+            device_map="auto",
+            trust_remote_code=True,
+            torch_dtype=torch.float16,
+        )
     
     # 添加LoRA配置
     target_modules = args.lora_target_modules.split(",")
@@ -216,7 +236,14 @@ def prepare_model_and_tokenizer(args):
     logger.info(f"可训练参数: {trainable_params:,} ({trainable_params / total_params:.2%})")
     logger.info(f"总参数: {total_params:,}")
     
-    return model, processsor
+    # 打印内存使用情况
+    if torch.cuda.is_available():
+        gpu_mem_alloc = torch.cuda.max_memory_allocated() / 1024**3
+        gpu_mem_reserved = torch.cuda.max_memory_reserved() / 1024**3
+        logger.info(f"GPU内存使用: 分配 = {gpu_mem_alloc:.2f} GB, 保留 = {gpu_mem_reserved:.2f} GB")
+    
+    return model, processor
+
 def same_seed(seed: int):
     """设置随机种子"""
     torch.manual_seed(seed)
@@ -226,6 +253,7 @@ def same_seed(seed: int):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     logger.info(f"设置随机种子: {seed}")
+
 def train(args):
     """主训练函数"""
     logger.info("开始训练准备...")
@@ -262,14 +290,15 @@ def train(args):
     ppo_config = PPOConfig(
         model_name=args.model_name_or_path,
         learning_rate=args.learning_rate,
-        batch_size=args.batch_size * 5,
-        mini_batch_size=args.mini_batch_size * 5,
+        batch_size=args.batch_size,
+        mini_batch_size=args.mini_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         ppo_epochs=args.ppo_epochs,
         max_grad_norm=0.5,
         optimize_device_cache=True,
         seed=args.seed,
         optimize_cuda_cache=True,
+        kl_penalty="kl"
     )
     
     # 初始化PPO训练器
@@ -351,6 +380,7 @@ def train(args):
 
                     # 生成响应
                     with torch.no_grad():
+                        # LM_head forward
                         response = ppo_trainer.generate(inputs.input_ids.squeeze(),generation_kwargs=generation_kwargs, length_sampler=length_sampler)
 
                         response = response.squeeze()
@@ -366,10 +396,14 @@ def train(args):
                             characters = extract_json_from_response(response_text)
                             characters = json.loads(characters)
                         except Exception as e:
-                            raise ValueError(f"Error extracting characters from completion {response_text}")
+                            logger.error(f"Error extracting characters from completion {response_text}")
+                            characters = None
                             # fix possible json format error
-                        characters = transform_character_descriptions(characters)
-                        save_plan_json(characters, f"{task_dir}/characters.json")
+                        if characters is not None:
+                            characters = transform_character_descriptions(characters)
+                            save_plan_json(characters, f"{task_dir}/characters.json")
+                        else:
+                            continue
                     if assistant_response and step_name == "Script Writing":
                         logger.info("正在提取分镜脚本中...")
                         story = response_text
@@ -382,8 +416,8 @@ def train(args):
                 try:
                     extract_plan_from_response(response_text, plan_file, characters=characters)
                 except Exception as e:
-                    print(f"Error extracting plan: {str(e)}")
-                    print(response_text)
+                    logger.error(f"Error extracting plan: {str(e)}")
+                    logger.info(response_text)
                     # raise ValueError("Error extracting plan")
                 if os.path.exists(plan_file):
                     plan = load_input_json(plan_file)
@@ -445,8 +479,12 @@ def train(args):
         logger.debug(f"discounted_rewards shape: {[t.shape for t in discounted_rewards]}")
         
         # PPO更新
+        # Value_head forward
         stats = ppo_trainer.step(query_tensors, response_tensors, discounted_rewards)
-        ppo_trainer.log_stats(stats, discounted_rewards, query_tensors, response_tensors)
+        batch_data = {}
+        batch_data["query"] = query_tensors
+        batch_data["response"] = response_tensors
+        ppo_trainer.log_stats(stats, batch_data, discounted_rewards)
         
         # 更新全局步数
         global_step += 1

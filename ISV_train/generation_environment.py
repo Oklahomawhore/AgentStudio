@@ -204,10 +204,13 @@ class GenerationEnvironment:
                 eval_report=self._get_eval_report()
             )
         
-        
+        characters_file = os.path.join(self.current_task_dir, "characters.json")
+        story_file = os.path.join(self.current_task_dir, "story.txt")
+        is_characters_file = os.path.exists(characters_file)
+        is_story_file = os.path.exists(story_file)
             
         # 如果没有有效计划，返回中间状态
-        if self.plan is None or type(self.plan) is not list or len(self.plan) == 0:
+        if self.plan is None or type(self.plan) is not list or len(self.plan) == 0 or not is_characters_file or not is_story_file:
             logger.warning("没有有效的执行计划，请提供计划")
             self.text_history += "没有有效的执行计划，请提供计划\n"
             return EnvObservation(
