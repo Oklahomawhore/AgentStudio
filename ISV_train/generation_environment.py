@@ -10,9 +10,10 @@ from dataclasses import dataclass
 import dotenv
 
 import sys
-sys.path.append("/data/wangshu/wangshu_code/ISG")
-sys.path.append("/data/wangshu/wangshu_code/ISG/ISG_agent")
-sys.path.append("/data/wangshu/wangshu_code/ISG/ISV_eval")
+file_path = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(f"{file_path}/..")
+sys.path.append(f"{file_path}/../ISG_agent")
+sys.path.append(f"{file_path}/../ISV_eval")
 from ISG_agent.PlanningAgentV2 import Execute_plan, double_check, extract_structure
 from ISG_agent.util import GENERATION_MODE
 from ISV_eval.agent_academy import get_score, process_question_v3, get_score_for_task
