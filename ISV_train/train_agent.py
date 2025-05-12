@@ -150,6 +150,18 @@ class ScriptArguments:
         default=4,
         metadata={"help": "量化位数，可选4或8"}
     )
+    dry_run: bool = field(
+        default=False,
+        metadata={"help": "干运行模式，跳过PPO更新步骤，仅保存查询、响应和奖励"}
+    )
+    adapter_name_or_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "预训练adapter权重的路径，不提供则不加载adapter"}
+    )
+    merge_adapter: bool = field(
+        default=False,
+        metadata={"help": "是否将adapter权重合并到基础模型中"}
+    )
 
 def init_wandb(args):
     """初始化wandb日志记录"""
@@ -211,21 +223,42 @@ def prepare_model_and_tokenizer(args):
             args.model_name_or_path,
             device_map="auto",
             trust_remote_code=True,
-            torch_dtype=torch.float16,
+            torch_dtype=torch.bfloat16,
         )
     
     # 添加LoRA配置
     target_modules = args.lora_target_modules.split(",")
-    peft_config = LoraConfig(
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        bias="none",
-        task_type="CAUSAL_LM",
-        target_modules=target_modules
-    )
     
-    model = get_peft_model(model, peft_config)
+    # 加载预训练的adapter（如果指定）
+    if args.adapter_name_or_path:
+        logger.info(f"从 {args.adapter_name_or_path} 加载预训练adapter")
+        try:
+            lora_config = LoraConfig.from_pretrained(args.adapter_name_or_path)
+            model = get_peft_model(model, lora_config)
+            
+            # 如果需要，合并adapter权重到基础模型
+            if args.merge_adapter:
+                logger.info("将adapter权重合并到基础模型")
+                model = model.merge_and_unload()
+                logger.info("合并完成，将继续应用新的LoRA配置")
+        except Exception as e:
+            logger.error(f"加载adapter失败: {str(e)}")
+            logger.warning("将继续使用未加载adapter的模型")
+        finally:
+            logger.info("加载adapter完成")
+    
+    # 如果没有合并adapter或未加载adapter，应用新的LoRA配置
+    if args.adapter_name_or_path is None:
+        peft_config = LoraConfig(
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            bias="none",
+            task_type="CAUSAL_LM",
+            target_modules=target_modules
+        )
+        
+        model = get_peft_model(model, peft_config)
     
     # 将模型包装为ValueHead模型用于PPO
     model = AutoModelForCausalLMWithValueHead.from_pretrained(model)
@@ -424,10 +457,11 @@ def train(args):
                 else:
                     plan = None
                 batch_responses.append(plan)
+                save_plan_json(messages, os.path.join(task_dir, "messages.json"))
             # save intermediates
             logger.info(f"保存中间结果到: {os.path.join(args.env_output_dir, f'intermediate_{global_step}.pt')}")
             torch.save({"query_tensors": query_tensors, "response_tensors": response_tensors, "batch_responses": batch_responses}, os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt"))
-        
+            
         # 准备计划并运行环境
         batch_rewards = [] # (bs)
         if os.path.exists(os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt")):
@@ -478,19 +512,58 @@ def train(args):
         logger.debug(f"response_tensors shape: {[t.shape for t in response_tensors]}")
         logger.debug(f"discounted_rewards shape: {[t.shape for t in discounted_rewards]}")
         
+        # 保存查询、响应和奖励到磁盘（JSON格式）
+        if args.dry_run:
+            dry_run_data = {
+                "step": global_step,
+                "tasks": [task.get('id', '0000') for task in tasks_batch],
+                "query_responses": [],
+                "rewards": batch_rewards.tolist() if isinstance(batch_rewards, np.ndarray) else batch_rewards,
+                "mean_reward": float(mean_reward)
+            }
+            
+            # 为每个查询-响应对准备JSON数据
+            for i, (query, response) in enumerate(zip(query_tensors, response_tensors)):
+                step_idx = i // len(plan_template)
+                plan_step = list(plan_template.keys())[i % len(plan_template)]
+                
+                # 解码查询和响应文本
+                query_text = processor.decode(query, skip_special_tokens=True)
+                response_text = processor.decode(response[query.shape[0]:], skip_special_tokens=True)
+                
+                dry_run_data["query_responses"].append({
+                    "task_id": tasks_batch[step_idx].get('id', '0000'),
+                    "plan_step": plan_step,
+                    "query": query_text,
+                    "response": response_text,
+                    "reward": float(discounted_rewards[i].cpu().numpy()) if hasattr(discounted_rewards[i], 'cpu') else float(discounted_rewards[i])
+                })
+            
+            # 保存JSON文件
+            dry_run_file = os.path.join(args.output_dir, f"dry_run_step_{global_step}.json")
+            with open(dry_run_file, 'w', encoding='utf-8') as f:
+                json.dump(dry_run_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"干运行结果已保存至: {dry_run_file}")
+        
         # PPO更新
-        # Value_head forward
-        stats = ppo_trainer.step(query_tensors, response_tensors, discounted_rewards)
-        batch_data = {}
-        batch_data["query"] = query_tensors
-        batch_data["response"] = response_tensors
-        ppo_trainer.log_stats(stats, batch_data, discounted_rewards)
+        if not args.dry_run:
+            # Value_head forward
+            stats = ppo_trainer.step(query_tensors, response_tensors, discounted_rewards)
+            batch_data = {}
+            batch_data["query"] = query_tensors
+            batch_data["response"] = response_tensors
+            ppo_trainer.log_stats(stats, batch_data, discounted_rewards)
+        else:
+            logger.info("干运行模式：跳过PPO更新步骤")
+            batch_data = {}
+            batch_data["query"] = query_tensors
+            batch_data["response"] = response_tensors
         
         # 更新全局步数
         global_step += 1
         
         # 保存模型检查点
-        if global_step % args.save_steps == 0 or mean_reward > best_reward:
+        if not args.dry_run and (global_step % args.save_steps == 0 or mean_reward > best_reward):
             if mean_reward > best_reward:
                 best_reward = mean_reward
                 logger.info(f"新的最佳奖励: {best_reward:.4f}")
