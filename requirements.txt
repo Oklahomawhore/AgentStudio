@@ -398,7 +398,7 @@ tornado==6.4.1
 tqdm==4.66.5
 trailrunner==1.4.0
 traitlets==5.14.3
-git+ssh://git@github.com/huggingface/transformers
+transformers==4.50.0
 transformers-stream-generator==0.0.5
 transfusion-pytorch==0.0.42
 treetable==0.2.5
@@ -440,7 +440,7 @@ whisper-timestamped==1.14.2
 widgetsnbextension==4.0.13
 wrapt==1.17.2
 wsproto==1.2.0
-xformers==0.0.29.post3
+xformers==0.0.22.post7
 xgrammar==0.1.11
 xxhash==3.5.0
 yacs==0.1.8

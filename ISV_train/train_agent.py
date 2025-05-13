@@ -323,9 +323,9 @@ def train(args):
     ppo_config = PPOConfig(
         model_name=args.model_name_or_path,
         learning_rate=args.learning_rate,
-        batch_size=args.batch_size,
+        batch_size=args.batch_size * 5,
         mini_batch_size=args.mini_batch_size,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        gradient_accumulation_steps=args.gradient_accumulation_steps * 5,
         ppo_epochs=args.ppo_epochs,
         max_grad_norm=0.5,
         optimize_device_cache=True,

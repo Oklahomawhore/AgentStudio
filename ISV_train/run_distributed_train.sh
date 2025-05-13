@@ -16,6 +16,7 @@ mkdir -p $OUTPUT_DIR
 MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"  # 替换为你的模型名称
 ADAPTER_NAME="$PROJECT_DIR/ISV_train/outputs/sft_stage2"
 DATASET_PATH="$PROJECT_DIR/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json"
+PLAN_TEMPLATE="$PROJECT_DIR/ISG_agent/Prompt/plan_template.json"
 BATCH_SIZE=3  # 全局批量大小
 LOCAL_BATCH=1  # 每个GPU的批量大小
 ACCUM_STEPS=1  # 梯度累积步数
@@ -51,6 +52,7 @@ python $PROJECT_DIR/ISV_train/train_agent.py \
     --max_length 2048 \
     --min_length 512 \
     --dry_run "True" \
+    --plan_template $PLAN_TEMPLATE \
     2>&1 | tee -a $OUTPUT_DIR/training.log
 
 echo "Training completed at $(date)" | tee -a $OUTPUT_DIR/training.log
