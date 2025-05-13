@@ -4,14 +4,17 @@
 export CUDA_VISIBLE_DEVICES=0,4,5
 export WANDB_API_KEY="e6e375cc17f1bdca8c5976d19fc8de07a33daeeb"  # 替换为你的wandb key
 
-# 项目路径
-PROJECT_DIR="/data/wangshu/wangshu_code/ISG"
+# 使用相对路径设置项目目录
+# 获取脚本所在目录
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# 项目根目录是脚本目录的上一级
+PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 OUTPUT_DIR="$PROJECT_DIR/ISV_train/outputs/qwen2-5-vl-ppo-$(date +%Y%m%d-%H%M%S)"
 mkdir -p $OUTPUT_DIR
 
 # 训练参数
 MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"  # 替换为你的模型名称
-ADAPTER_NAME="/data/wangshu/wangshu_code/ISG/ISV_train/outputs/sft_stage2"
+ADAPTER_NAME="$PROJECT_DIR/ISV_train/outputs/sft_stage2"
 DATASET_PATH="$PROJECT_DIR/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json"
 BATCH_SIZE=3  # 全局批量大小
 LOCAL_BATCH=1  # 每个GPU的批量大小
