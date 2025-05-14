@@ -17,7 +17,7 @@ MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"  # 替换为你的模型名称
 ADAPTER_NAME="$PROJECT_DIR/ISV_train/outputs/sft_stage2"
 DATASET_PATH="$PROJECT_DIR/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json"
 PLAN_TEMPLATE="$PROJECT_DIR/ISG_agent/Prompt/plan_template.json"
-BATCH_SIZE=3  # 全局批量大小
+BATCH_SIZE=1  # 全局批量大小
 LOCAL_BATCH=1  # 每个GPU的批量大小
 ACCUM_STEPS=1  # 梯度累积步数
 
@@ -29,7 +29,6 @@ echo "Using model: $MODEL_NAME" | tee -a $OUTPUT_DIR/training.log
 # 启动训练
 python $PROJECT_DIR/ISV_train/train_agent.py \
     --model_name_or_path $MODEL_NAME \
-    --adapter_name_or_path $ADAPTER_NAME \
     --dataset_path $DATASET_PATH \
     --output_dir $OUTPUT_DIR \
     --env_output_dir "$OUTPUT_DIR/env_results" \
@@ -41,6 +40,7 @@ python $PROJECT_DIR/ISV_train/train_agent.py \
     --max_steps 10 \
     --save_steps 20 \
     --eval_steps 20 \
+    --use_lora "True" \
     --lora_r 8 \
     --lora_alpha 32 \
     --lora_dropout 0.05 \
@@ -51,7 +51,7 @@ python $PROJECT_DIR/ISV_train/train_agent.py \
     --generation_mode "t2v" \
     --max_length 2048 \
     --min_length 512 \
-    --dry_run "True" \
+    --dry_run "False" \
     --plan_template $PLAN_TEMPLATE \
     2>&1 | tee -a $OUTPUT_DIR/training.log
 

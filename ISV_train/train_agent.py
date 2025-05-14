@@ -19,6 +19,7 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
+from custom_trainer import CustomPPOTrainer
 from trl.core import LengthSampler
 
 from generation_environment import GenerationEnvironment
@@ -61,6 +62,10 @@ class ScriptArguments:
     env_output_dir: str = field(
         default="env_results",
         metadata={"help": "环境结果输出目录"}
+    )
+    use_lora: bool = field(
+        default=False,
+        metadata={"help": "是否使用LoRA进行训练"}
     )
     lora_r: int = field(
         default=16,
@@ -248,7 +253,7 @@ def prepare_model_and_tokenizer(args):
             logger.info("加载adapter完成")
     
     # 如果没有合并adapter或未加载adapter，应用新的LoRA配置
-    if args.adapter_name_or_path is None:
+    if args.adapter_name_or_path is None and args.use_lora:
         peft_config = LoraConfig(
             r=args.lora_r,
             lora_alpha=args.lora_alpha,
@@ -326,6 +331,7 @@ def train(args):
         batch_size=args.batch_size * 5,
         mini_batch_size=args.mini_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps * 5,
+        backward_batch_size=1,
         ppo_epochs=args.ppo_epochs,
         max_grad_norm=0.5,
         optimize_device_cache=True,
@@ -335,19 +341,20 @@ def train(args):
     )
     
     # 初始化PPO训练器
-    ppo_trainer = PPOTrainer(
+    ppo_trainer = CustomPPOTrainer(
         config=ppo_config,
         model=model,
         tokenizer=processor.tokenizer,
     )
     
     # 创建环境
+    isv_train_dir = os.path.dirname(os.path.abspath(__file__))
     env = GenerationEnvironment(
-        base_dir="/data/wangshu/wangshu_code/ISG",
+        base_dir=os.path.join(isv_train_dir, ".."),
         output_dir=args.env_output_dir,
         generation_mode=args.generation_mode,
-        prompt_json="/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json",
-        questions_dir="/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/instance_questions_deepseek",
+        prompt_json=os.path.join(isv_train_dir, "..", "ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json"),
+        questions_dir=os.path.join(isv_train_dir, "..", "ISV_eval/datasets/NovelConditionedVGen/instance_questions_deepseek"),
         model=model,
         processor=processor,
     )
@@ -371,6 +378,7 @@ def train(args):
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
+        "temperature": 1.8,
     }
     batch_indices = np.random.choice(train_indices, args.batch_size, replace=False)
     while global_step < args.max_steps:

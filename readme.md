@@ -1,24 +1,13 @@
 <div align="center">
-<h1>Interleaved Scene Graph for Interleaved Text-and-Image Generation Assessment</h1>
+<h1>SISQ: Training-free self-improvement of video generation agent with self-questioning</h1>
 
-[![Website](https://img.shields.io/badge/Website-%F0%9F%8C%8D-blue?style=for-the-badge&logoWidth=40)](https://interleave-eval.github.io/)
-[![Paper](https://img.shields.io/badge/Paper-%F0%9F%8E%93-lightgrey?style=for-the-badge&logoWidth=40)](https://arxiv.org/abs/2411.17188)
-[![Dataset](https://img.shields.io/badge/Dataset-%F0%9F%92%BE-green?style=for-the-badge&logoWidth=40)](https://huggingface.co/datasets/shuaishuaicdp/ISG-Bench)
-
-
-<img src="https://img.shields.io/github/last-commit/Dongping-Chen/ISG?style=flat-square&color=5D6D7E" alt="git-last-commit" />
-<img src="https://img.shields.io/github/commit-activity/m/Dongping-Chen/ISG?style=flat-square&color=5D6D7E" alt="GitHub commit activity" />
-<img src="https://img.shields.io/github/languages/top/Dongping-Chen/ISG?style=flat-square&color=5D6D7E" alt="GitHub top language" />
-
-<img src="figures/evaluation.png">
 <p align="center">
 
 </p>
 </div>
 
 ## Updates & News
-- [12/09/2024] :star: We release code for compositional framework (Gemini/Claude + SD3/SD2.1/Flux, ISG-Agent) today!
-- [11/27/2024] :page_facing_up: We release our [paper](https://arxiv.org/abs/2411.17188) and [dataset](https://github.com/Dongping-Chen/ISG) today!
+- [13/05/2025] We release code today!
   
 ## Contents
 - [Updates \& News](#updates--news)
@@ -39,6 +28,17 @@ This evaluation method and benchmark is designed for evaluating interleaved gene
 
 ### Environment Setup
 Given that we mainly use GPT-4o for VQA in *Image* and *Block* level as well as MLLM-as-a-Judge in *Holistic* level, you can simply setup by: `pip install openai`.
+
+1. create conda environment
+`conda create -n agentstudio python=3.10`
+
+2. install pytorch
+`pip install torch torchvision torchaudio`
+
+3. install requirements
+
+`pip install -r requirements.txt --no-deps`
+
 
 ### Repository Management
 

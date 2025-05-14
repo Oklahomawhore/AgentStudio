@@ -85,10 +85,10 @@ class GenerationEnvironment:
     
     def __init__(
         self, 
-        base_dir: str = "/data/wangshu/wangshu_code/ISG",
+        base_dir: str = "../",
         output_dir: str = "results", 
         prompt_json: str = None,
-        questions_dir: str = "/data/wangshu/wangshu_code/ISG/ISV_eval/NovelConditionedVGen/instance_questions",
+        questions_dir: str = "ISV_eval/NovelConditionedVGen/instance_questions",
         generation_mode: str = GENERATION_MODE.T2V,
         model = None,
         processor = None
