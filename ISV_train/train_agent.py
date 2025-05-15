@@ -7,6 +7,7 @@ import numpy as np
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 import random
+import math, time
 
 import transformers
 from transformers import (
@@ -15,11 +16,12 @@ from transformers import (
     BitsAndBytesConfig,
     HfArgumentParser,
     TrainingArguments,
-    AutoProcessor
+    AutoProcessor,
+    DataCollatorForLanguageModeling,
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
-from custom_trainer import CustomPPOTrainer
+from custom_trainer import VLMPPO
 from trl.core import LengthSampler
 
 from generation_environment import GenerationEnvironment
@@ -197,7 +199,7 @@ def prepare_model_and_tokenizer(args):
     logger.info(f"加载模型和分词器: {args.model_name_or_path}")
     
     # 加载分词器
-    processor = AutoProcessor.from_pretrained(args.model_name_or_path)
+    processor = AutoProcessor.from_pretrained(args.model_name_or_path,use_fast=True)
     
     if args.use_qlora:
         logger.info(f"使用QLoRA配置，量化位数: {args.quantization_bits}位")
@@ -317,9 +319,14 @@ def train(args):
     
     # 准备模型和分词器
     model, processor = prepare_model_and_tokenizer(args)
+    # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.learning_rate)
     
+    # lr_schedular = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
+
     # 初始化分布式训练
     # accelerator = Accelerator()
+    # accelerator.init_trackers("video_agent_ppo", config=vars(args))
+    # model, optimizer, lr_schedular = accelerator.prepare(model, optimizer, lr_schedular)
     
     # 创建输出目录
     os.makedirs(args.output_dir, exist_ok=True)
@@ -340,8 +347,8 @@ def train(args):
         kl_penalty="kl"
     )
     
-    # 初始化PPO训练器
-    ppo_trainer = CustomPPOTrainer(
+    # 初始化VLM PPO训练器
+    ppo_trainer = PPOTrainer(
         config=ppo_config,
         model=model,
         tokenizer=processor.tokenizer,
@@ -422,13 +429,21 @@ def train(args):
                     # 生成响应
                     with torch.no_grad():
                         # LM_head forward
-                        response = ppo_trainer.generate(inputs.input_ids.squeeze(),generation_kwargs=generation_kwargs, length_sampler=length_sampler)
+                        # response = model.generate(inputs.input_ids,generation_kwargs=generation_kwargs, max_new_tokens=4096, do_sample=True)
+                        response = ppo_trainer.generate(
+                            inputs.input_ids,
+                            generation_kwargs=generation_kwargs,
+                            length_sampler=length_sampler,
+                        )
+                        
+                        response_tensors.append(response.squeeze()[inputs.input_ids.shape[1]:])
 
-                        response = response.squeeze()
-                        response_tensors.append(response)
-
-
-                    decoded_response = processor.decode(response[inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                    # truncate prompt+respones to max_length
+                    if len(query_tensors[-1]) + len(response_tensors[-1]) > args.max_length:
+                        assert len(response_tensors[-1]) < args.max_length, "response length is larger than max_length"
+                        truncate_length = len(query_tensors[-1]) + len(response_tensors[-1]) - args.max_length
+                        query_tensors[-1] = query_tensors[-1][-(len(query_tensors[-1]) - truncate_length):]
+                    decoded_response = processor.decode(response.squeeze()[inputs.input_ids.shape[1]:], skip_special_tokens=True)
                     response_text = decoded_response
                     assistant_response = decoded_response
                     if assistant_response and step_name == "Casting Extraction":
@@ -552,7 +567,7 @@ def train(args):
             with open(dry_run_file, 'w', encoding='utf-8') as f:
                 json.dump(dry_run_data, f, ensure_ascii=False, indent=2)
             logger.info(f"干运行结果已保存至: {dry_run_file}")
-        
+        # data_collator = DataCollatorForLanguageModeling(tokenizer=processor.tokenizer, mlm=False)
         # PPO更新
         if not args.dry_run:
             # Value_head forward
@@ -561,6 +576,47 @@ def train(args):
             batch_data["query"] = query_tensors
             batch_data["response"] = response_tensors
             ppo_trainer.log_stats(stats, batch_data, discounted_rewards)
+
+            # model.train()
+            # for i in range(math.ceil(len(query_tensors) / args.mini_batch_size)):
+            #     optimizer.zero_grad()
+            #     start_idx = i * args.mini_batch_size
+            #     end_idx = min((i + 1) * args.mini_batch_size, len(query_tensors))
+            #     mini_query_tensors = query_tensors[start_idx:end_idx]
+            #     mini_response_tensors = response_tensors[start_idx:end_idx]
+            #     mini_discounted_rewards = discounted_rewards[start_idx:end_idx]
+
+            #     # 修改这一行，使用torch.cat而不是torch.stack
+            #     input_ids = [torch.cat([q, r]) for q, r in zip(mini_query_tensors, mini_response_tensors)]
+
+            #     # truncate input_ids to max_length
+            #     input_ids = [ids[-args.max_length:] for ids in input_ids]
+            #     model_inputs = [{
+            #         "input_ids": ids,
+            #         "attention_mask": torch.ones_like(ids),
+            #     } for ids in input_ids]
+            #     model_inputs = data_collator(model_inputs).to(accelerator.device)
+
+            #     logger.info(f"before forward: {torch.cuda.memory_allocated() / 1024**3:.2f} GB, Going to forward inputs of size {model_inputs['input_ids'].shape}")
+            #     logitss, loss, value = model(**model_inputs)
+
+            #     logger.info(f"after forward: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+
+            #     logp = torch.nn.functional.log_softmax(logitss, dim=2)
+
+
+            #     batch_input_ids = torch.stack(input_ids).to(accelerator.device)
+            #     log_probs = torch.gather(logp, 2, batch_input_ids.unsqueeze(2)).squeeze(-1)
+
+            #     rewards = torch.tensor(mini_discounted_rewards, device=accelerator.device).unsqueeze(1)  # shape: [bs, 1]
+            #     loss = (-log_probs * rewards).sum()
+                
+            #     lr_schedular.step()
+            #     accelerator.backward(loss)
+            #     optimizer.step()
+            #     accelerator.clip_grad_norm_(model.parameters(), 1.0)
+            #     del logitss, log_probs, loss, value
+            #     torch.cuda.empty_cache()
         else:
             logger.info("干运行模式：跳过PPO更新步骤")
             batch_data = {}
@@ -576,9 +632,17 @@ def train(args):
                 best_reward = mean_reward
                 logger.info(f"新的最佳奖励: {best_reward:.4f}")
                 ppo_trainer.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
+                # unwrapped_model = accelerator.unwrap_model(model)
+                # os.makedirs(os.path.join(args.output_dir, "best_reward_model"), exist_ok=True)
+                # unwrapped_model.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
+                # model.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
             
             save_dir = os.path.join(args.output_dir, f"checkpoint-{global_step}")
             ppo_trainer.save_pretrained(save_dir)
+            # os.makedirs(save_dir, exist_ok=True)
+            # unwrapped_model = accelerator.unwrap_model(model)
+            # unwrapped_model.save_pretrained(save_dir)
+            # model.save_pretrained(save_dir)
             logger.info(f"保存检查点到: {save_dir}")
         
         # 评估
@@ -601,6 +665,8 @@ def train(args):
     
     # 保存最终模型
     ppo_trainer.save_pretrained(os.path.join(args.output_dir, "final_model"))
+    # os.makedirs(os.path.join(args.output_dir, "final_model"), exist_ok=True)
+    # model.save_pretrained(os.path.join(args.output_dir, "final_model"))
     logger.info("训练完成，保存最终模型")
     
     # 清理wandb
