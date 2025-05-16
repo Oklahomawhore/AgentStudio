@@ -5,7 +5,7 @@ import time
 import asyncio
 import logging
 import subprocess
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any, Optional, Union
 from dataclasses import dataclass
 import dotenv
 
@@ -50,6 +50,7 @@ class EnvInfo:
     video_files: List[str]      # 生成的视频文件路径
     execution_time: float       # 执行时间
     eval_report: Optional[Dict] # 评估报告
+    false_answers: Optional[Dict] # 错误答案（如果有）
 
 @dataclass
 class HistoryItem:
@@ -161,7 +162,7 @@ class GenerationEnvironment:
             task=self.current_task
         )
     
-    def step(self, plan: Optional[List[Dict]] = None) -> Tuple[EnvObservation, float, bool, EnvInfo]:
+    def step(self, plan: Optional[List[Dict]] = None, return_false=False) -> Tuple[EnvObservation, float, bool, EnvInfo]:
         """
         执行环境步进，处理计划或生成视频
         
@@ -190,7 +191,11 @@ class GenerationEnvironment:
             self.text_history += "视频已生成，环境终止\n"
             
             # 运行评估
-            reward = self._evaluate_videos()
+            reward = self._evaluate_videos(return_false=return_false)
+            if return_false:
+                reward, false_answers = reward
+            else:
+                reward = reward
             
             return EnvObservation(
                 text_history=self.text_history,
@@ -202,7 +207,8 @@ class GenerationEnvironment:
                 plan_file=self.plan_file,
                 video_files=self.video_files,
                 execution_time=execution_time,
-                eval_report=self._get_eval_report()
+                eval_report=self._get_eval_report(),
+                false_answers=false_answers if return_false else None
             )
         
         characters_file = os.path.join(self.current_task_dir, "characters.json")
@@ -224,7 +230,8 @@ class GenerationEnvironment:
                 plan_file="",
                 video_files=[],
                 execution_time=execution_time,
-                eval_report=None
+                eval_report=None,
+                false_answers=None
             )
         
         # 执行计划生成视频
@@ -240,7 +247,11 @@ class GenerationEnvironment:
             
             # 运行评估
             logger.info("开始评估视频质量...")
-            reward = self._evaluate_videos()
+            result = self._evaluate_videos(return_false=return_false)
+            if return_false:
+                reward, false_answers = result
+            else:
+                reward = result
             logger.info(f"视频评估完成，评分: {reward:.4f}")
             
             return EnvObservation(
@@ -253,7 +264,8 @@ class GenerationEnvironment:
                 plan_file=self.plan_file,
                 video_files=self.video_files,
                 execution_time=execution_time,
-                eval_report=self._get_eval_report()
+                eval_report=self._get_eval_report(),
+                false_answers=false_answers if return_false else None
             )
         else:
             # 视频生成失败
@@ -270,7 +282,8 @@ class GenerationEnvironment:
                 plan_file=self.plan_file,
                 video_files=[],
                 execution_time=execution_time,
-                eval_report=None
+                eval_report=None,
+                false_answers=None
             )
     
     def _check_existing_videos(self):
@@ -362,7 +375,7 @@ class GenerationEnvironment:
                 f.write(f"执行计划失败: {str(e)}\n")
             return False
     
-    def _evaluate_videos(self) -> float:
+    def _evaluate_videos(self, return_false=False) -> Union[float, Tuple[float, Dict]]:
         """评估生成的视频质量并返回评分"""
         if not self.is_video_generated or not self.video_files:
             logger.warning("无视频可评估")
@@ -413,6 +426,7 @@ class GenerationEnvironment:
                 # 评估回答
                 evaluator = ResponseEvaluator(result_file, self.questions_dir, reprompt_llm=reprompt_llm)
                 scores = evaluator.evaluate_all()
+                false_answers = evaluator.false_answers()
                 self.eval_score = scores['aggregate']
                 logger.info(f"评估完成: 填空题={scores['fill_in_blank']:.2f}, "
                           f"是非题={scores['yes_no']:.2f}, "
@@ -427,16 +441,16 @@ class GenerationEnvironment:
                 logger.debug(f"评估报告已保存到: {report_path}")
                 
                 self.text_history += f"评估完成，总分: {self.eval_score:.4f}\n"
-                return self.eval_score
+                return self.eval_score if not return_false else (self.eval_score, false_answers)
             else:
                 logger.error("评估失败，无结果文件")
                 self.text_history += "评估失败，无结果文件\n"
-                return 0.0
+                return 0.0 if not return_false else (0.0, {})
                 
         except Exception as e:
             logger.exception(f"评估视频时出错: {str(e)}")
             self.text_history += f"评估视频时出错: {str(e)}\n"
-            return 0.0
+            return 0.0 if not return_false else (0.0, {})
     
     def _get_eval_report(self) -> Optional[Dict]:
         """获取评估报告（如果有）"""

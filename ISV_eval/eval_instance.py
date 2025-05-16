@@ -133,6 +133,11 @@ class ResponseEvaluator:
             "yes_no": [],
             "multiple_choice": []
         }
+        self.false_answers = {
+            "fill_in_blank": [],
+            "yes_no": [],
+            "multiple_choice": []
+        }
         self.scores = {
             "fill_in_blank": 0.0,
             "yes_no": 0.0,
@@ -362,6 +367,13 @@ class ResponseEvaluator:
             }
         }
 
+    def false_answers(self) -> Dict[str, List[Dict[str, Any]]]:
+        """返回错误答案"""
+        return {
+            "fill_in_blank": [item for item in self.evaluated_answers["fill_in_blank"] if not item["correct"]],
+            "yes_no": [item for item in self.evaluated_answers["yes_no"] if not item["correct"]],
+            "multiple_choice": [item for item in self.evaluated_answers["multiple_choice"] if not item["correct"]]
+        }
 
 # 简单的LLM重新提问函数示例
 def reprompt_llm(prompt: str) -> str:

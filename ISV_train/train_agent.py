@@ -30,6 +30,7 @@ from accelerate.utils import DistributedType
 
 from ISG_agent.PlanningAgentV2 import generate_single_task, Execute_plan, extract_character_from_content, transform_character_descriptions, extract_plan_from_response, extract_json_from_response
 from ISG_agent.util import save_plan_json, load_input_json
+from ICL_META import ICL_META
 
 # 配置日志
 import logging
@@ -64,6 +65,10 @@ class ScriptArguments:
     env_output_dir: str = field(
         default="env_results",
         metadata={"help": "环境结果输出目录"}
+    )
+    use_icl: bool = field(
+        default=False,
+        metadata={"help": "是否使用示例学习进行训练"}
     )
     use_lora: bool = field(
         default=False,
@@ -388,6 +393,7 @@ def train(args):
         "temperature": 1.8,
     }
     batch_indices = np.random.choice(train_indices, args.batch_size, replace=False)
+    task_infos = {}
     while global_step < args.max_steps:
         # 从训练集中采样任务批次
         
@@ -420,7 +426,10 @@ def train(args):
                         messages.append({"role": "system", "content": [{"type": "text", "text": system_prompt}]})
                         messages.append({"role": "user", "content": [{"type": "text", "text" : f"{step_name}: {step_prompt} \n\n {task_text}"}]})
                     else:
-                        messages.append({"role": "user", "content": [{"type":"text", "text" : f"{step_name}: {step_prompt} \n\n "}]})
+                        if task['id'] in task_infos and args.use_icl and step_name == "Deatailed Storyboarding":
+                            messages.append({"role": "user", "content": [{"type":"text", "text" : f"{step_name}: {step_prompt} \n\n {task_text} \n\n {ICL_META.format(task_infos[task['id']])}"}]})
+                        else:
+                            messages.append({"role": "user", "content": [{"type":"text", "text" : f"{step_name}: {step_prompt} \n\n "}]})
                     text = processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
                     inputs = processor(text=[text], padding=True, return_tensors="pt")
                     inputs = inputs.to(ppo_trainer.accelerator.device)
@@ -429,20 +438,26 @@ def train(args):
                     # 生成响应
                     with torch.no_grad():
                         # LM_head forward
-                        # response = model.generate(inputs.input_ids,generation_kwargs=generation_kwargs, max_new_tokens=4096, do_sample=True)
-                        response = ppo_trainer.generate(
-                            inputs.input_ids,
-                            generation_kwargs=generation_kwargs,
-                            length_sampler=length_sampler,
-                        )
+                        if args.use_icl:
+                            response = model.generate(inputs.input_ids,generation_kwargs=generation_kwargs, max_new_tokens=2048, do_sample=True)
+                        else:
+                            response = ppo_trainer.generate(
+                                inputs.input_ids.squeeze(),
+                                generation_kwargs=generation_kwargs,
+                                length_sampler=length_sampler,
+                            )
                         
                         response_tensors.append(response.squeeze()[inputs.input_ids.shape[1]:])
 
                     # truncate prompt+respones to max_length
                     if len(query_tensors[-1]) + len(response_tensors[-1]) > args.max_length:
-                        assert len(response_tensors[-1]) < args.max_length, "response length is larger than max_length"
-                        truncate_length = len(query_tensors[-1]) + len(response_tensors[-1]) - args.max_length
-                        query_tensors[-1] = query_tensors[-1][-(len(query_tensors[-1]) - truncate_length):]
+                        # assert len(response_tensors[-1]) < args.max_length, "response length is larger than max_length"
+                        if len(query_tensors[-1]) > args.max_length:
+                            logger.warning(f"query length is larger than max_length, query length: {len(query_tensors[-1])}, max_length: {args.max_length}")
+                            query_tensors[-1] = torch.tensor([], dtype=torch.long)
+                        else:
+                            truncate_length = len(query_tensors[-1]) + len(response_tensors[-1]) - args.max_length
+                            query_tensors[-1] = query_tensors[-1][-(len(query_tensors[-1]) - truncate_length):]
                     decoded_response = processor.decode(response.squeeze()[inputs.input_ids.shape[1]:], skip_special_tokens=True)
                     response_text = decoded_response
                     assistant_response = decoded_response
@@ -495,7 +510,8 @@ def train(args):
 
                 # 重置环境并执行计划
                 env.reset(task, task_dir=os.path.join(args.env_output_dir, f"global_step_{global_step}", f"Task_{task['id']}"))
-                observation, reward, done, info = env.step(plan)
+                observation, reward, done, info = env.step(plan, return_false=args.use_icl)
+                task_infos[task['id']] = info
 
                 batch_rewards.append(float(reward))
 
@@ -571,11 +587,16 @@ def train(args):
         # PPO更新
         if not args.dry_run:
             # Value_head forward
-            stats = ppo_trainer.step(query_tensors, response_tensors, discounted_rewards)
-            batch_data = {}
-            batch_data["query"] = query_tensors
-            batch_data["response"] = response_tensors
-            ppo_trainer.log_stats(stats, batch_data, discounted_rewards)
+            if args.use_icl:
+                # revise plan_template for ICL
+                # plan_template["Detailed Storyboarding"] = plan_template["Detailed Storyboarding"] + ICL_META.format(info.get("false_answers", {}))
+                logger.info(f"Using ICL for training, task infos: {len(task_infos)}")
+            else:
+                stats = ppo_trainer.step(query_tensors, response_tensors, discounted_rewards)
+                batch_data = {}
+                batch_data["query"] = query_tensors
+                batch_data["response"] = response_tensors
+                ppo_trainer.log_stats(stats, batch_data, discounted_rewards)
 
             # model.train()
             # for i in range(math.ceil(len(query_tensors) / args.mini_batch_size)):
@@ -631,14 +652,16 @@ def train(args):
             if mean_reward > best_reward:
                 best_reward = mean_reward
                 logger.info(f"新的最佳奖励: {best_reward:.4f}")
-                ppo_trainer.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
+                if not args.use_icl:
+                    ppo_trainer.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
                 # unwrapped_model = accelerator.unwrap_model(model)
                 # os.makedirs(os.path.join(args.output_dir, "best_reward_model"), exist_ok=True)
                 # unwrapped_model.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
                 # model.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
             
             save_dir = os.path.join(args.output_dir, f"checkpoint-{global_step}")
-            ppo_trainer.save_pretrained(save_dir)
+            if not args.use_icl:
+                ppo_trainer.save_pretrained(save_dir)
             # os.makedirs(save_dir, exist_ok=True)
             # unwrapped_model = accelerator.unwrap_model(model)
             # unwrapped_model.save_pretrained(save_dir)
@@ -664,7 +687,8 @@ def train(args):
                 })
     
     # 保存最终模型
-    ppo_trainer.save_pretrained(os.path.join(args.output_dir, "final_model"))
+    if not args.use_icl:
+        ppo_trainer.save_pretrained(os.path.join(args.output_dir, "final_model"))
     # os.makedirs(os.path.join(args.output_dir, "final_model"), exist_ok=True)
     # model.save_pretrained(os.path.join(args.output_dir, "final_model"))
     logger.info("训练完成，保存最终模型")
