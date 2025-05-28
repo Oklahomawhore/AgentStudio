@@ -19,6 +19,7 @@ from ISG_agent.util import GENERATION_MODE
 from ISV_eval.agent_academy import get_score, process_question_v3, get_score_for_task
 from ISV_eval.eval_instance import ResponseEvaluator
 from ISV_eval.prompt_datasets import EnhancedVideoStorytellingDataset
+from ISV_eval.question_define import generate_dataset_questions
 
 from ISV_eval.eval_instance import reprompt_llm
 # 配置日志
@@ -92,7 +93,10 @@ class GenerationEnvironment:
         questions_dir: str = "ISV_eval/NovelConditionedVGen/instance_questions",
         generation_mode: str = GENERATION_MODE.T2V,
         model = None,
-        processor = None
+        processor = None,
+        model_name: str = None,
+        regenerate_question=False,
+        args = None
     ):
         """
         初始化生成环境
@@ -112,6 +116,9 @@ class GenerationEnvironment:
         self.prompt_json = prompt_json
         self.model = model
         self.processor = processor
+        self.regenerate_question = regenerate_question
+        self.model_name = model_name
+        self.args = args
         
         # 环境状态
         self.current_task = None
@@ -124,6 +131,9 @@ class GenerationEnvironment:
         self.eval_score = 0.0
         self.start_time = 0
         logger.debug("生成环境初始化完成")
+
+        self.false_answers = {}
+        self.correct_answers = {}
         
     def reset(self, task: Dict, task_dir: str) -> EnvObservation:
         """
@@ -194,7 +204,9 @@ class GenerationEnvironment:
             reward = self._evaluate_videos(return_false=return_false)
             if return_false:
                 reward, false_answers = reward
+                logger.info(f"Return false answers in info. Reward: {reward:.2f}, False answers: {false_answers}")
             else:
+                logger.info("No false answers in info, just return reward. {reward:.2f}")
                 reward = reward
             
             return EnvObservation(
@@ -247,6 +259,9 @@ class GenerationEnvironment:
             
             # 运行评估
             logger.info("开始评估视频质量...")
+            if self.regenerate_question:
+                # regenerate instance questions
+                self.generate_instance_questions()
             result = self._evaluate_videos(return_false=return_false)
             if return_false:
                 reward, false_answers = result
@@ -356,13 +371,24 @@ class GenerationEnvironment:
             
             # 执行计划生成视频
             logger.info(f"开始执行计划生成视频，生成模式: {self.generation_mode}")
+
+            # 检查self.args是否为数据类并转换为字典
+            kwargs = {}
+            if self.args is not None:
+                if hasattr(self.args, '__dataclass_fields__'):  # 判断是否为数据类
+                    kwargs = vars(self.args)  # 转换为字典
+                else:
+                    kwargs = self.args  # 已经是字典类型
+
+            # 将kwargs传递给Execute_plan函数
             Execute_plan(
                 self.plan, 
                 self.current_task, 
                 self.current_task_dir, 
                 characters=characters, 
                 story=story, 
-                mode=self.generation_mode
+                mode=self.generation_mode,
+                **kwargs
             )
             logger.info("计划执行完成")
             
@@ -374,7 +400,11 @@ class GenerationEnvironment:
             with open(error_file, 'a') as f:
                 f.write(f"执行计划失败: {str(e)}\n")
             return False
-    
+    def generate_instance_questions(self):
+        # regenerate instance questions
+        generate_dataset_questions(self.prompt_json, prev_correct=self.correct_answers, output_dir=os.path.join(self.current_task_dir, "instance_questions"))
+        self.questions_dir = os.path.join(self.current_task_dir, "instance_questions")
+
     def _evaluate_videos(self, return_false=False) -> Union[float, Tuple[float, Dict]]:
         """评估生成的视频质量并返回评分"""
         if not self.is_video_generated or not self.video_files:
@@ -412,6 +442,9 @@ class GenerationEnvironment:
             
             # 运行异步评估
             logger.info("启动异步评估...")
+            kwargs = {}
+            if self.model_name:
+                kwargs['model_name'] = self.model_name
             result_file = asyncio.run(get_score(
                 video_path, 
                 processed_questions,
@@ -419,6 +452,7 @@ class GenerationEnvironment:
                 local_model=self.model,
                 local_processor=self.processor,
                 task_id=f"Task_{task_id}",
+                **kwargs
             ))
             
             if result_file and os.path.exists(result_file):
@@ -426,7 +460,10 @@ class GenerationEnvironment:
                 # 评估回答
                 evaluator = ResponseEvaluator(result_file, self.questions_dir, reprompt_llm=reprompt_llm)
                 scores = evaluator.evaluate_all()
-                false_answers = evaluator.false_answers()
+                false_answers = evaluator.get_false_answers()
+                correct_answers = evaluator.get_correct_answers()
+                self.false_answers[task_id] = false_answers
+                self.correct_answers[task_id] = correct_answers
                 self.eval_score = scores['aggregate']
                 logger.info(f"评估完成: 填空题={scores['fill_in_blank']:.2f}, "
                           f"是非题={scores['yes_no']:.2f}, "

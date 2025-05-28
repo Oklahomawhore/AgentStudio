@@ -33,13 +33,13 @@ def generate_video_request(data):
 
         # Prepare the data to send in the POST request
         payload = {
-            "model": "vidu1.5",
+            "model": "viduq1",
             "style": "general",
             "prompt": data["prompt"],
-            "duration": "4",
+            "duration": "5",
             "seed": "2025",
             "aspect_ratio": "16:9",
-            "resolution": "720p",
+            "resolution": "1080p",
             "movement_amplitude": "auto"
         }
 
@@ -57,6 +57,11 @@ def generate_video_request(data):
                 return None
         else:
             print(f"Error: {response.status_code} - {response_data.get('message', 'Unknown error')}")
+            # 生成 curl 命令用于调试
+            auth_header = f"Token {os.getenv('VIDU_API_KEY')}"
+            payload_str = json.dumps(payload).replace('"', '\\"')
+            curl_command = f'curl -X POST "{TEXT_API_URL}" -H "Content-Type: application/json" -H "Authorization: {auth_header}" -d "{payload_str}"'
+            print(f"DEBUG curl command: {curl_command}")
             return None
     except Exception as e:
         print(f"Error in generating video: {e}")
@@ -66,7 +71,7 @@ def generate_video_request(data):
 def check_text2video_status(task_id):
     try:
         headers = {
-            'Authorization': f'Bearer {os.getenv("VIDU_API_KEY")}',
+            'Authorization': f'Token {os.getenv("VIDU_API_KEY")}',
             'Content-Type': 'application/json',
         }
 
@@ -81,13 +86,13 @@ def check_text2video_status(task_id):
                 video_url = response_data.get('creations')[0].get('url')
                 return video_url
             elif status == 'failed':
-                print(f"Task failed: {response_data.get('error', 'No error details')}")
+                print(f"Task {response_data['id']} failed: {response_data['err_code']}")
                 return None
             else:
                 # Still processing
                 return None
         else:
-            print(f"Error: {response.status_code} - {response_data.get('message', 'Unknown error')}")
+            print(f"Error: {response.status_code} - {response.text}")
             return None
     except Exception as e:
         print(f"Error in checking video status: {e}")
@@ -110,7 +115,7 @@ def generate_video():
         # Step 2: Periodically check for task completion status
         video_url = None
         retry_count = 0
-        max_retries = 10
+        max_retries = 60
         while retry_count < max_retries:
             video_url = check_text2video_status(task_id)
             # If the task has succeeded, we retrieve the video URL
@@ -167,7 +172,8 @@ def generate_image2video():
         payload = {
             "model": "vidu2.0",
             "image": signed_url,
-            "seed" : 2025
+            "seed" : 2025,
+            "duration" : 8
         }
 
         # POST request to generate the video
@@ -333,6 +339,6 @@ def generate_reference2video():
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
-    parser.add_argument('-p', '--port', default=7988, type=int, help='port to listen on')
+    parser.add_argument('-p', '--port', default=6005, type=int, help='port to listen on')
     args = parser.parse_args()
     app.run(port=args.port, host='0.0.0.0')

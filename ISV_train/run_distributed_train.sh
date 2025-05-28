@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 设置环境变量
-export CUDA_VISIBLE_DEVICES=0,4,5
+export CUDA_VISIBLE_DEVICES=2,4,5
 export WANDB_API_KEY="e6e375cc17f1bdca8c5976d19fc8de07a33daeeb"  # 替换为你的wandb key
 
 # 使用相对路径设置项目目录
@@ -13,13 +13,13 @@ OUTPUT_DIR="$PROJECT_DIR/ISV_train/outputs/qwen2-5-vl-ppo-$(date +%Y%m%d-%H%M%S)
 mkdir -p $OUTPUT_DIR
 
 # 训练参数
-MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"  # 替换为你的模型名称
+MODEL_NAME="doubao-1-5-thinking-vision-pro-250428"  # 替换为你的模型名称
 ADAPTER_NAME="$PROJECT_DIR/ISV_train/outputs/sft_stage2"
 DATASET_PATH="$PROJECT_DIR/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json"
 PLAN_TEMPLATE="$PROJECT_DIR/ISG_agent/Prompt/plan_template.json"
-BATCH_SIZE=3  # 全局批量大小
+BATCH_SIZE=1  # 全局批量大小
 LOCAL_BATCH=1  # 每个GPU的批量大小
-ACCUM_STEPS=3  # 梯度累积步数
+ACCUM_STEPS=1  # 梯度累积步数
 
 # 启动日志
 echo "Starting distributed training with Accelerate at $(date)" | tee -a $OUTPUT_DIR/training.log
@@ -54,6 +54,8 @@ python $PROJECT_DIR/ISV_train/train_agent.py \
     --dry_run "False" \
     --plan_template $PLAN_TEMPLATE \
     --use_icl "True" \
+    --regenerate_question "True" \
+    --video_gen_api_base "http://localhost:6005" \
     2>&1 | tee -a $OUTPUT_DIR/training.log
 
 echo "Training completed at $(date)" | tee -a $OUTPUT_DIR/training.log

@@ -103,7 +103,8 @@ def process_question_v3(questions: StoryQuestions, video_path: str) -> List[Tupl
 
 async def get_score(video_path, 
                     processed_questions, 
-                    method='agent', 
+                    method='agent',
+                    model_name='qwen-vl-max-latest',
                     threshold=30.0, 
                     min_scene_length=15, 
                     output_dir='eval_results', 
@@ -165,20 +166,20 @@ async def get_score(video_path,
         critic = CriticAgent(
             specialty="艺术电影",
             critic_style="严苛",
-            model="qwen-vl-max-latest",
+            model=model_name,
             save_dir=os.path.join(output_dir, "agent_log")
         )
 
         cultural_expert = CulturalExpertAgent(
             cultural_background="中国文化",
             expertise_areas=["电影中的文化符号", "东西方文化比较"],
-            model="qwen-vl-max-latest",
+            model=model_name,
             save_dir=os.path.join(output_dir, "agent_log")
         )
 
         audience_rep = AudienceAgent(
             demographics={"age_group": "18-25岁", "occupation": "大学生", "education": "本科在读", "region": "二线城市"},
-            model="qwen-vl-max-latest",
+            model=model_name,
             save_dir=os.path.join(output_dir, "agent_log")
         )
 

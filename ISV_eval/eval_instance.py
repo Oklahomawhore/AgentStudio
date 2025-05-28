@@ -13,7 +13,7 @@ from ISV_eval.util import QUESTION_TEMPLATE
 
 load_dotenv()
 
-client= OpenAI(api_key=os.getenv("KLING_API_KEY"), base_url=os.getenv("OPENAI_API_BASE"))
+client= OpenAI(api_key=os.getenv("KLING_API_KEY"), base_url=os.getenv("ZZZZ_API_BASE"))
 
 class EvaluationMetrics:
     """用于计算评估指标的类"""
@@ -129,11 +129,6 @@ class ResponseEvaluator:
         
         # 评估状态和结果
         self.evaluated_answers = {
-            "fill_in_blank": [],
-            "yes_no": [],
-            "multiple_choice": []
-        }
-        self.false_answers = {
             "fill_in_blank": [],
             "yes_no": [],
             "multiple_choice": []
@@ -343,8 +338,11 @@ class ResponseEvaluator:
     def evaluate_all(self) -> Dict[str, float]:
         """评估所有问题类型并计算总分"""
         self.evaluate_fill_in_blank()
+        print(f"Fill-in-blank evaluated, false answers count: {len(self.get_false_answers()['fill_in_blank'])}")
         self.evaluate_yes_no()
+        print(f"Yes/No evaluated, false answers count: {len(self.get_false_answers()['yes_no'])}")
         self.evaluate_multiple_choice()
+        print(f"Multiple choice evaluated, false answers count: {len(self.get_false_answers()['multiple_choice'])}")
         
         # 计算加权平均分数
         self.scores["aggregate"] = EvaluationMetrics.calculate_aggregated_score({
@@ -367,13 +365,27 @@ class ResponseEvaluator:
             }
         }
 
-    def false_answers(self) -> Dict[str, List[Dict[str, Any]]]:
-        """返回错误答案"""
-        return {
-            "fill_in_blank": [item for item in self.evaluated_answers["fill_in_blank"] if not item["correct"]],
-            "yes_no": [item for item in self.evaluated_answers["yes_no"] if not item["correct"]],
-            "multiple_choice": [item for item in self.evaluated_answers["multiple_choice"] if not item["correct"]]
-        }
+    def get_false_answers(self) -> Dict[str, List[Dict[str, Any]]]:
+        return self._get_answers_for_correct_false(correct=False)
+    
+    def get_correct_answers(self) -> Dict[str, List[Dict[str, Any]]]:
+        return self._get_answers_for_correct_false(correct=True)
+    
+    def _get_answers_for_correct_false(self, correct: bool) -> Dict[str, List[Dict[str, Any]]]:
+        """返回正确或错误的答案"""
+        result = {}
+        for category in ["fill_in_blank", "yes_no", "multiple_choice"]:
+            # 使用字典去重，以问题为键
+            unique_answers = {}
+            for item in self.evaluated_answers[category]:
+                if item["correct"] == correct:
+                    question = item["question"]
+                    unique_answers[question] = item
+            
+            # 将字典转换回列表
+            result[category] = list(unique_answers.values())
+        
+        return result
 
 # 简单的LLM重新提问函数示例
 def reprompt_llm(prompt: str) -> str:

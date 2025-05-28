@@ -117,20 +117,17 @@ The JSON object should have the following structure:
 }}
 
 The story is {}
+
+Some oracle video reviewer looked at the generated video and answered a few questions related to the story. \
+Here are some questions the oracle answered correctly, you should avoid asking the same set of questions to raise your question answering difficulty.
+The questions are:
+{}
 """
-
-output_dir = "/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/instance_questions_deepseek"
-os.makedirs(output_dir, exist_ok=True)
-
-stories = []
-
-with open("/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json", "r") as f:
-    tasks = json.load(f)
 
 
 
 OpenAIClient = OpenAI(
-   api_key=os.getenv("KLING_API_KEY"), # KEY
+   api_key=os.getenv("OPENAI_MODEL_KEY"), # KEY
    base_url=os.getenv("OPENAI_BASE_URL")
 )
 
@@ -155,23 +152,31 @@ def extract_json_from_response(json_text):
     
     json_text = response_text[start_index:end_index]
     return json_text
-for task in tqdm(tasks):
+
+def generate_task_questions(task, output_dir="/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/instance_questions_deepseek", prev_correct=None):
+    os.makedirs(output_dir, exist_ok=True)
     task_id = task.get("id")
     for query in task.get("Query"):
         if query["type"] == "text":
             story = query["content"]
         if not os.path.exists(f"{output_dir}/{task_id}.json"):
             response = OpenAIClient.chat.completions.create(
-                model="deepseek-r1",
+                model="doubao-1-5-thinking-vision-pro-250428",
                 messages=[
-                    {"role": "user", "content": meta_prompt.format(story)}
+                    {"role": "user", "content": meta_prompt.format(story, prev_correct)}
                 ],
                 temperature=0.7,
                 max_tokens=4096,
-                response_format={"type" : "json"}
+                response_format={"type" : "json_object"}
             )
             questions = response.choices[0].message.content
             questions = json.loads(extract_json_from_response(questions))
             with open(f"{output_dir}/{task_id}.json", "w") as f:
                 json.dump(questions, f, indent=4, ensure_ascii=False)
 
+def generate_dataset_questions(input_json, prev_correct=None, output_dir=None):
+    with open(input_json, "r") as f:
+        tasks = json.load(f)
+    for i, task in enumerate(tasks):
+        task_id = task.get("id")
+        generate_task_questions(task, prev_correct=prev_correct[task_id] if prev_correct and task_id in prev_correct else None, output_dir=output_dir)

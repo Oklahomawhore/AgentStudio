@@ -674,7 +674,7 @@ def handle_audio_addition(video_path, task_dir, step, result):
     
     # Download and save the output video
     key = video_path.split("/")[-1]
-    output_video_path = os.path.join(task_dir, f"{key.split('.')[0]}_with_audio.mp4")
+    output_video_path = os.path.abspath(os.path.join(task_dir, f"{key.split('.')[0]}_with_audio.mp4"))
 
     response = requests.get(output_url, stream=True)
     response.raise_for_status()  # Ensure the request was successful
@@ -781,7 +781,7 @@ def generate_storyboard(prompt, character_imgs):
         str: The path to the generated storyboard image.
     """
     p_hash = generate_hash(prompt)
-    storyboard_path = os.path.join('imgs', f"{p_hash}.png")
+    storyboard_path = os.path.abspath(os.path.join('imgs', f"{p_hash}.png"))
     if os.path.exists(storyboard_path):
         print(f"Storyboard already exists at {storyboard_path}")
         return storyboard_path
@@ -810,7 +810,7 @@ def generate_storyboard(prompt, character_imgs):
         f.write(image_bytes)
     return storyboard_path
 
-def Execute_plan(plan, task, task_dir, characters={}, story="", mode=GENERATION_MODE.T2V):
+def Execute_plan(plan, task, task_dir, characters={}, story="", mode=GENERATION_MODE.T2V, **kwargs):
     if os.path.exists(f"{task_dir}/error.log"):
         return
     
@@ -911,7 +911,7 @@ def Execute_plan(plan, task, task_dir, characters={}, story="", mode=GENERATION_
             tts_tasks.append((step['TTS_prompt'], voice_direction) if step['TTS_prompt'] not in  ["无", "None"] else ("", {}))
     with open(f"{task_dir}/video_prompt.json", "w", encoding='utf-8') as f:
         json.dump(video_prompts, f, indent=4,ensure_ascii=False)
-    final = generate_all(video_tasks, music_tasks, tts_tasks, task_dir)
+    final = generate_all(video_tasks, music_tasks, tts_tasks, task_dir, video_gen_api_base=kwargs.get("video_gen_api_base", None))
     
     plan_file_final = f"{task_dir}/plan_{task.get('id', '0000')}_final.json"
     # result_json = decode_result_into_jsonl(result, task_dir,benchmark_file)

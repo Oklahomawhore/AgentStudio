@@ -1,0 +1,12 @@
+doubao:
+  model_key_env: "ARK_API_KEY"
+  model_base_url_env: "OPENAI_BASE_URL"
+deepseek:
+  model_key_env: "KLING_API_KEY"
+  model_base_url_env: "ZZZZ_API_BASE"
+gpt:
+  model_key_env: "KLING_API_KEY"
+  model_base_url_env: "ZZZZ_API_BASE"
+qwen:
+  model_key_env: "DASHSCOPE_API_KEY"
+  model_base_url_env: "DASHSCOPE_API_BASE"

@@ -90,7 +90,7 @@ def download_video(video_url, file_name=None, save_directory="videos") -> str:
         
         url_filename = "video_" + str(int(time.time())) + '_' + str(uuid.uuid4()) + ".mp4"
 
-        video_path = os.path.join(save_directory, file_name if file_name is not None else url_filename)
+        video_path = os.path.join(os.path.abspath(save_directory), file_name if file_name is not None else url_filename)
 
         # Save the video
         with open(video_path, "wb") as video_file:

@@ -6,6 +6,7 @@ import uuid
 import re
 import base64
 from typing import List,Tuple, Dict
+from functools import partial
 
 import torch
 import pickle
@@ -16,6 +17,7 @@ from pydub import AudioSegment  # For concatenating WAV files
 import torchaudio
 from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_write
+from uuid import uuid4
 
 from api_interface import kling_imggen_agent, kling_img2video_agent, kling_text2video_agent, morph_images_agent, kling_ref2video_agent
 from util import generate_hash, save_to_disk, load_from_disk
@@ -48,7 +50,7 @@ def gen_img(prompt):
     # save base64 img to file and return path
     return img_base64
 
-def gen_video(prompt, image, i2v=False):
+def gen_video(prompt, image, i2v=False, api_base=None):
     try:
         hash_string = str(prompt) + str(image)
         prompt_hash = generate_hash(hash_string)  # Combine image path for uniqueness
@@ -57,19 +59,23 @@ def gen_video(prompt, image, i2v=False):
         # Check if the video already 
         existing_video = load_from_disk(file_path)
 
+        extra_kwargs = {}
+        if api_base is not None:
+            extra_kwargs["api_base"] = api_base
+
         if existing_video is not None:
             print(f"<GEN_VIDEO> prompt: {prompt} image: {image} already exists")
             return existing_video
         if image != '':
             assert(isinstance(image, str) or isinstance(image, list)), "Image must be a string or a list of strings"
             if isinstance(image, str):
-                video_list, screenshot_list = kling_img2video_agent(image, prompt)
+                video_list, screenshot_list = kling_img2video_agent(image, prompt, **extra_kwargs)
             elif isinstance(image, list):
-                video_list, screenshot_list = kling_ref2video_agent(image, prompt)
+                video_list, screenshot_list = kling_ref2video_agent(image, prompt, **extra_kwargs)
             else:
                 raise ValueError(f"Unexpected image argument type, expected str or list, got {type(image)}")
         else:
-            video_list, screenshot_list = kling_text2video_agent(prompt)
+            video_list, screenshot_list = kling_text2video_agent(prompt, **extra_kwargs)
         # time.sleep(10)
         # with open("imgs/dog1.txt", "r") as f:
         #     img_b64 = f.read().strip()
@@ -136,7 +142,7 @@ def generate_single_music(prompt: str, duration: float) -> str:
     try:
         # Generate hash from the prompt and duration
         prompt_hash = generate_hash(f"{prompt}_{duration:.1f}")
-        file_path = f"music/{prompt_hash}.wav"
+        file_path = os.path.abspath(f"music/{prompt_hash}.wav")
 
         # Check if the music already exists
         if os.path.exists(file_path):
@@ -151,7 +157,7 @@ def generate_single_music(prompt: str, duration: float) -> str:
 
         for idx, one_wav in enumerate(wav):
             # Will save under {idx}.wav, with loudness normalization at -14 db LUFS.
-            file_path = audio_write(f'music/{prompt_hash}', one_wav.cpu(), model.sample_rate, strategy="loudness", loudness_compressor=True)
+            file_path = audio_write(os.path.abspath(f'music/{prompt_hash}'), one_wav.cpu(), model.sample_rate, strategy="loudness", loudness_compressor=True)
         return file_path
     except Exception as e:
         print(f"Error in generating music: {str(e)}")
@@ -176,7 +182,7 @@ def generate_and_combine_music(prompts: List[str], durations: List[float]) -> st
     
     # 合并所有生成的音乐文件
     combined_hash = generate_hash("_".join([f"{p}_{d:.1f}" for p, d in zip(prompts, durations)]))
-    combined_file = f"music/combined_{combined_hash}.wav"
+    combined_file = os.path.abspath(f"music/combined_{combined_hash}.wav")
     
     # 检查合并文件是否已存在
     if os.path.exists(combined_file):
@@ -307,7 +313,8 @@ def gen_tts(prompt, voice_direction, speaker_embeddings_cache_dir="speaker_embed
                 params_infer_code=params_infer_code,
             )
         # Save individual WAV file
-        file_name = f"audio/{speaker.replace('/', '').replace(' ', '_')}_{conversation[:10].replace('/', '').replace(' ', '_')}.wav"
+
+        file_name = os.path.abspath(f"audio/{str(uuid4())}.wav")
         try:
             torchaudio.save(file_name, torch.from_numpy(wavs[0]).unsqueeze(0), 24000)
         except Exception as e:
@@ -353,19 +360,20 @@ def concat_video(video_clips: List[VideoFileClip], music_path, tts_paths, task_d
         final_video = concatenate_videoclips(video_clips, method="compose")
 
         # Load audio clips
-        music_audio = AudioFileClip(music_path).with_volume_scaled(0.5)
-        music_audio = music_audio.subclipped(0, min(total_length, music_audio.duration))
+        if os.path.exists(music_path):
+            music_audio = AudioFileClip(music_path).with_volume_scaled(0.5)
+            music_audio = music_audio.subclipped(0, min(total_length, music_audio.duration))
         
-        
-        tts_clip = [AudioFileClip(tts_path).with_start(prefix_sum[index]) for index, tts_path in enumerate(tts_paths) if tts_path is not None]
+        if len(tts_paths) > 0:
+            tts_clip = [AudioFileClip(tts_path).with_start(prefix_sum[index]) for index, tts_path in enumerate(tts_paths) if tts_path is not None]
 
         # Combine audio tracks (dialogue + music)
-        final_audio = CompositeAudioClip([music_audio, *tts_clip])
-        
-        final_video = final_video.with_audio(final_audio)
+        if len(tts_paths) > 0:
+            final_audio = CompositeAudioClip([music_audio, *tts_clip])
+            final_video = final_video.with_audio(final_audio)
 
         # Save the final video
-        output_path = f"{task_dir}/final_video_{uuid.uuid4()}.mp4"
+        output_path = os.path.abspath(f"{task_dir}/final_video_{uuid.uuid4()}.mp4")
         final_video.write_videofile(output_path)
         return output_path
 
@@ -373,14 +381,17 @@ def concat_video(video_clips: List[VideoFileClip], music_path, tts_paths, task_d
         print(f"Error during video concatenation: {e}")
         return None
 
-def generate_all(video_task, music_task, tts_task, task_dir):
+def generate_all(video_task, music_task, tts_task, task_dir, video_gen_api_base=None):
     # Create separate executors for each task category
     with ThreadPoolExecutor(max_workers=5, thread_name_prefix='gen_video_threads') as executor:
         start = time.time()
         
+        # Use partial to create a new function with api_base parameter set
+        gen_video_with_api = partial(gen_video, api_base=video_gen_api_base)
+        
         # First generate videos that need screenshots
         t2v_tasks = [task for task in video_task if task[1] != "<LastFrame>"]
-        vid_results_stage_1 = list(executor.map(gen_video, *zip(*t2v_tasks)))
+        vid_results_stage_1 = list(executor.map(gen_video_with_api, *zip(*t2v_tasks)))
         
         # Process remaining tasks sequentially if they need last frame
         vid_results = []
@@ -400,7 +411,8 @@ def generate_all(video_task, music_task, tts_task, task_dir):
             elif task[1] == "<LastFrame>":
                 # Execute i2v tasks one by one to use last frame
                 if last_screenshot:
-                    result = gen_video(task[0], last_screenshot, i2v=True)
+                    # Also use the api_base parameter here
+                    result = gen_video(task[0], last_screenshot, i2v=True, api_base=video_gen_api_base)
                     # Save new screenshot
                     screenshot_path = f"{task_dir}/screenshot_{i}.png"
                     image_bytes = base64.b64decode(result[1][-1])
@@ -411,13 +423,14 @@ def generate_all(video_task, music_task, tts_task, task_dir):
                 else:
                     raise Exception("Need last frame for an i2v task.")
         # Generate TTS and music in parallel
-        tts_results = executor.map(gen_tts, *zip(*tts_task))
+        # tts_results = executor.map(gen_tts, *zip(*tts_task))
+        tts_results = []
         video_clips = [VideoFileClip(video[0]) for video in vid_results]
         video_lengths = []
         for clip in video_clips:
             video_lengths.append(clip.duration)
-        music_result = executor.submit(gen_music, music_task, video_lengths)
-        final = concat_video(video_clips, music_result.result(), list(tts_results), task_dir)
+        # music_result = executor.submit(gen_music, music_task, video_lengths)
+        final = concat_video(video_clips, "", list(tts_results), task_dir)
         end = time.time()
         print(f"Time taken: {end-start:.6f}")
 

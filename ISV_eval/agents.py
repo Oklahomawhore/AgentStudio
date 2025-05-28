@@ -16,6 +16,7 @@ import oss2
 import copy
 from oss2.credentials import EnvironmentVariableCredentialsProvider
 
+from util import resolve_api_from_model_name
 from vlm_score import inference
 
 # 添加一个线程本地存储，用于存储每个线程的客户端实例
@@ -80,7 +81,8 @@ class BaseAgent:
         memory: Optional[Memory] = None,
         max_workers: int = 1,  # 添加最大工作线程数参数
         save_dir: str = None,
-        seed=0
+        seed=0,
+        **kwargs
     ):
         """
         初始化基础智能体
@@ -93,14 +95,15 @@ class BaseAgent:
             max_workers: 线程池最大工作线程数
         """
         # 初始化OpenAI客户端
-        self.api_key = api_key or os.environ.get("KLING_API_KEY")
-        self.base_url = os.environ.get("OPENAI_BASE_URL")
+        self.api_key, self.base_url = resolve_api_from_model_name(model, kwargs.get('model_mapping', os.path.abspath(os.path.join(os.path.dirname(__file__), 'model_mapping.json'))))
+        if self.api_key is None or self.base_url is None:
+            raise ValueError(f"unable to resolve api key and base url for model {model}, please check your model name or model_mapping config file.")
         self.seed = seed
         if not self.api_key:
             raise ValueError("OpenAI API密钥未提供，请通过参数传入或设置OPENAI_API_KEY环境变量")
         
         # 主线程客户端，用于非并发情况
-        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        # self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.model = model
 
         self.batch_client = OpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"), base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
@@ -117,12 +120,14 @@ class BaseAgent:
         
         # 内存锁，保护共享资源
         self.memory_lock = threading.RLock()
+        print(f"Agent {self} using model {self.model}")
     def __str__(self):
         return self.characteristics.name
     
     def _get_thread_client(self):
         """获取线程本地的OpenAI客户端"""
         if not hasattr(thread_local, 'client'):
+            # get model config from elsewhere to decouple from agent logic
             thread_local.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         return thread_local.client
         
@@ -245,6 +250,7 @@ class BaseAgent:
         if 'qwen' in self.model.lower():
             # 使用线程池执行DashScope调用
             try:
+                # use local model if using qwen models.
                 reply = inference(local_model, local_processor, prompt=raw_messages)
                 
             except Exception as e:
@@ -427,7 +433,7 @@ class BaseAgent:
         """在线程中调用DashScope API"""
         response = dashscope.MultiModalConversation.call(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
-            model='qwen2.5-vl-32b-instruct',
+            model=self.model,
             messages=messages,
             seed=self.seed
         )

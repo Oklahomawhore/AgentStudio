@@ -15,7 +15,7 @@ Hunyuan_URL = "http://localhost:7905"
 
 Hunyuan_i2v_URL = "http://localhost:7906"
 
-Vidu_URL = "http://localhost:7988"
+Vidu_URL = "http://localhost:6005"
 
 WANX_LOCAL_URL = "http://localhost:7999"
 
@@ -96,8 +96,8 @@ def morph_images_agent(img_path1, img_path2, prompt):
 #KLING Service
 
 
-def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1) -> Tuple[str, List[str]]:
-    url = f"{Vidu_URL}/generate_image2video"  # Backend Flask API endpoint for img2video
+def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1, api_base=None) -> Tuple[str, List[str]]:
+    url = f"{Vidu_URL if not api_base else api_base}/generate_image2video"  # Backend Flask API endpoint for img2video
     data = {
         "image": image_url,
         "prompt": prompt,
@@ -110,8 +110,8 @@ def kling_img2video_agent(image_url, prompt, seconds_per_screenshot=1) -> Tuple[
     else:
         raise Exception(f"Error {response.status_code}: {response.text}")
 
-def kling_ref2video_agent(image_url, prompt, seconds_per_screenshot=1) -> Tuple[str, List[str]]:
-    url = f"{WANX_LOCAL_URL}/generate_reference2video"  # Backend Flask API endpoint for img2video
+def kling_ref2video_agent(image_url, prompt, seconds_per_screenshot=1, api_base=None) -> Tuple[str, List[str]]:
+    url = f"{WANX_LOCAL_URL if not api_base else api_base}/generate_reference2video"  # Backend Flask API endpoint for img2video
     data = {
         "image": image_url,
         "prompt": prompt,
@@ -125,8 +125,8 @@ def kling_ref2video_agent(image_url, prompt, seconds_per_screenshot=1) -> Tuple[
     else:
         raise Exception(f"Error {response.status_code}: {response.text}")
 
-def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
-    url = f"{WANX_LOCAL_URL}/generate_video"  # Backend Flask API endpoint for text2video
+def kling_text2video_agent(prompt_list, seconds_per_screenshot=1, api_base=None):
+    url = f"{Vidu_URL if not api_base else api_base}/generate_video"  # Backend Flask API endpoint for text2video
     data = {
         "prompt": prompt_list,
         "seconds_per_screenshot" : seconds_per_screenshot
@@ -139,8 +139,8 @@ def kling_text2video_agent(prompt_list, seconds_per_screenshot=1):
         raise Exception(f"Error {response.status_code}: {response.text}")
 
 
-def kling_imggen_agent(prompt):
-    url = f"{Flux_URL}/generate_image"  # Backend Flask API endpoint for imggen
+def kling_imggen_agent(prompt, api_base=None):
+    url = f"{Flux_URL if not api_base else api_base}/generate_image"  # Backend Flask API endpoint for imggen
     data = {
         "prompt": prompt,
     }

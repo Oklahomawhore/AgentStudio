@@ -21,6 +21,11 @@ from openai import OpenAI
 from dashscope.utils.oss_utils import preprocess_message_element
 import oss2
 from oss2.credentials import EnvironmentVariableCredentialsProvider
+from yaml import load, dump
+try:
+    from yaml import CLoader as Loader, CDumper as Dumper
+except ImportError:
+    from yaml import Loader, Dumper
 
 make_dir_lock = Lock()
 
@@ -78,7 +83,7 @@ def download_video(video_url, file_name=None, save_directory="videos") -> str:
         response.raise_for_status()
 
         # Define the full file path
-        video_path = os.path.join(save_directory, file_name if file_name is not None else video_url.split("/")[-1].split('?')[0])
+        video_path = os.path.join(os.path.abspath(save_directory), file_name if file_name is not None else video_url.split("/")[-1].split('?')[0])
 
         # Save the video
         with open(video_path, "wb") as video_file:
@@ -646,3 +651,25 @@ def get_aliyun_sign_url(file_path):
     bucket.put_object_from_file(objectName, local_file_path)
 
     return bucket.sign_url('GET', objectName, 2 * 60 * 60)  # 2小时有效期
+
+def resolve_api_from_model_name(model_name, config_file=None):
+    """
+    Resolve the API base URL from the model name or configuration file.
+    
+    Args:
+        model_name (str): The name of the model.
+        config_file (str, optional): Path to a configuration file containing API base URLs.
+        
+    Returns:
+        str: The resolved API base URL.
+    """
+    if config_file and os.path.exists(config_file):
+        with open(config_file, 'r') as f:
+            config = load(f, Loader=Loader)
+            for model, api_base in config.items():
+                if model in model_name:
+                    print(f"Found model '{model}' in config file, using API base: {api_base}")
+                    return os.getenv(api_base["model_key_env"]), os.getenv(api_base["model_base_url_env"])
+            return os.getenv("OPENAI_MODEL_KEY"), os.getenv("OPENAI_BASE_URL")
+    else:
+        return os.getenv("OPENAI_MODEL_KEY"), os.getenv("OPENAI_BASE_URL")
