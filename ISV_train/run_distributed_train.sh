@@ -10,8 +10,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # 项目根目录是脚本目录的上一级
 PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 # 训练参数
-MODEL_NAME="doubao-1-5-thinking-vision-pro-250428"  # 替换为你的模型名称
-# MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"  # 替换为你的模型名称
+# MODEL_NAME="doubao-1-5-thinking-vision-pro-250428"  # 替换为你的模型名称
+MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"  # 替换为你的模型名称
 # MODEL_NAME="Qwen/Qwen2-0.5B-Instruct"
 
 # 提取MODEL_NAME的最后一部分（如果包含"/"）

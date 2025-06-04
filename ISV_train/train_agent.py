@@ -426,9 +426,9 @@ def train(args):
     #     # 设置PPO配置
     if args.train_method == 'grpo':
         # 初始化VLM GRPO训练器
-        training_args = GRPOConfig(output_dir="Qwen2-0.5B-GRPO", logging_steps=10)
+        training_args = GRPOConfig(output_dir=args.model_name_or_path, logging_steps=10)
         ppo_trainer = GRPOTrainer(
-            model="Qwen/Qwen2-0.5B-Instruct",
+            model=model,
             reward_funcs=functools.partial(reward_func, env=env, tasks=[dataset[i] for i in train_indices], args=args),
             train_dataset=vgen_dataset(args.dataset_path, args),
             args=training_args,
