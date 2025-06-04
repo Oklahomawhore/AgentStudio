@@ -232,7 +232,7 @@ def prepare_model_and_tokenizer(args):
     logger.info(f"加载模型和分词器: {args.model_name_or_path}")
     
     # 加载分词器
-    processor = AutoProcessor.from_pretrained(args.model_name_or_path,use_fast=True)
+    processor = AutoProcessor.from_pretrained(args.model_name_or_path)
     
     if args.use_qlora:
         logger.info(f"使用QLoRA配置，量化位数: {args.quantization_bits}位")
@@ -426,7 +426,7 @@ def train(args):
     #     # 设置PPO配置
     if args.train_method == 'grpo':
         # 初始化VLM GRPO训练器
-        training_args = GRPOConfig(output_dir=args.model_name_or_path, logging_steps=10)
+        training_args = GRPOConfig(output_dir=os.path.join('outputs', args.model_name_or_path.split('/')[-1].lower()), logging_steps=10)
         ppo_trainer = GRPOTrainer(
             model=model,
             reward_funcs=functools.partial(reward_func, env=env, tasks=[dataset[i] for i in train_indices], args=args),
