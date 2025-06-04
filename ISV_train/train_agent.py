@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 import random
 import math, time
+import functools
 
 import transformers
 from transformers import (
@@ -21,6 +22,7 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
+from trl import GRPOTrainer, GRPOConfig
 from custom_trainer import VLMPPO
 from trl.core import LengthSampler
 from openai import OpenAI
@@ -34,7 +36,9 @@ from accelerate.utils import DistributedType
 
 from ISG_agent.PlanningAgentV2 import generate_single_task, Execute_plan, extract_character_from_content, transform_character_descriptions, extract_plan_from_response, extract_json_from_response
 from ISG_agent.util import save_plan_json, load_input_json
+from ISV_eval.util import resolve_api_from_model_name
 from ICL_META import ICL_META
+from ISV_train.vgen_dataset import vgen_dataset
 
 # 配置日志
 import logging
@@ -53,7 +57,8 @@ proprietary_models = [
     "doubao",
     "gpt",
     "gemini",
-    "claude"
+    "claude",
+    "deepseek"
 ]
 
 @dataclass
@@ -64,6 +69,10 @@ class ScriptArguments:
     model_name_or_path: str = field(
         default="Qwen/Qwen2.5-VL-32B-Instruct-AWQ", 
         metadata={"help": "要训练的模型名称或路径"}
+    )
+    train_method: str = field(
+        default='ppo',
+        metadata={"help": "训练方法，支持ppo, grpo, icl"}
     )
     dataset_path: str = field(
         default="/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/video_storytelling_novel.json",
@@ -292,7 +301,8 @@ def prepare_model_and_tokenizer(args):
         model = get_peft_model(model, peft_config)
     
     # 将模型包装为ValueHead模型用于PPO
-    model = AutoModelForCausalLMWithValueHead.from_pretrained(model)
+    if args.train_method == 'ppo':
+        model = AutoModelForCausalLMWithValueHead.from_pretrained(model)
     
     # 输出模型参数信息
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -317,6 +327,33 @@ def same_seed(seed: int):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     logger.info(f"设置随机种子: {seed}")
+
+def reward_func(completions=None, task=None, env=None,args=None, **kwargs) -> List[float]:
+    if env is None or task is None:
+        return [None] * len(completions)
+    rewards = []
+    for completion, cur_task in zip(completions, task):
+        task_dir = os.path.join(args.env_output_dir, f"global_step_{kwargs.get('global_step', 0)}", f"Task_{cur_task['id']}")
+        plan_file = os.path.join(task_dir, f"plan_{cur_task.get('id', '0000')}.json")
+        try:
+            extract_plan_from_response(completion, plan_file)
+        except Exception as e:
+            logger.error(f"Error extracting plan: {str(e)}")
+            logger.info(completion)
+            rewards.append(None)
+            continue
+            # raise ValueError("Error extracting plan")
+        if os.path.exists(plan_file):
+            plan = load_input_json(plan_file)
+        else:
+            plan = None
+        
+        env.reset(cur_task, task_dir=os.path.join(args.env_output_dir, f"global_step_{kwargs.get('global_step', 0)}", f"Task_{task['id']}"), reset_questinos=args.use_icl, task_ids=[task["id"] for task in tasks])
+        observation, reward_dict, done, info = env.step(plan, return_false=args.use_icl, return_ref_reward=args.use_icl)
+        reward = reward_dict.get("reward", 0.0)
+        ref_reward = reward_dict.get("ref_reward", 0.0)
+        rewards.append(reward)
+    return rewards
 
 def train(args):
     """主训练函数"""
@@ -349,7 +386,8 @@ def train(args):
     if use_proprietary_model:
         # 使用专有模型时，使用LoRA配置
         model, processor = None, None
-        client = OpenAI(base_url=os.getenv("OPENAI_BASE_URL"), api_key=os.getenv("OPENAI_MODEL_KEY"))
+        model_key, base_url = resolve_api_from_model_name(args.model_name_or_path, config_file=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ISV_eval/model_mapping.yaml")))
+        client = OpenAI(base_url=base_url, api_key=model_key)
     else:
         model, processor = prepare_model_and_tokenizer(args)
     # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.learning_rate)
@@ -363,31 +401,6 @@ def train(args):
     
     # 创建输出目录
     os.makedirs(args.output_dir, exist_ok=True)
-    
-    if not use_proprietary_model:
-        # 设置PPO配置
-        ppo_config = PPOConfig(
-            model_name=args.model_name_or_path,
-            learning_rate=args.learning_rate,
-            batch_size=args.batch_size * 5,
-            mini_batch_size=args.mini_batch_size,
-            gradient_accumulation_steps=args.gradient_accumulation_steps * 5,
-            backward_batch_size=1,
-            ppo_epochs=args.ppo_epochs,
-            max_grad_norm=0.5,
-            optimize_device_cache=True,
-            seed=args.seed,
-            optimize_cuda_cache=True,
-            kl_penalty="kl"
-        )
-
-        # 初始化VLM PPO训练器
-        ppo_trainer = PPOTrainer(
-            config=ppo_config,
-            model=model,
-            tokenizer=processor.tokenizer,
-        )
-    
     # 创建环境
     isv_train_dir = os.path.dirname(os.path.abspath(__file__))
     env = GenerationEnvironment(
@@ -402,6 +415,47 @@ def train(args):
         args=args,
         model_name=args.model_name_or_path,
     )
+    
+        
+    if args.train_method != 'icl':
+        args.use_icl = False
+    else:
+        args.use_icl = True
+    
+    # if not use_proprietary_model:
+    #     # 设置PPO配置
+    if args.train_method == 'grpo':
+        # 初始化VLM GRPO训练器
+        training_args = GRPOConfig(output_dir="Qwen2-0.5B-GRPO", logging_steps=10)
+        ppo_trainer = GRPOTrainer(
+            model="Qwen/Qwen2-0.5B-Instruct",
+            reward_funcs=functools.partial(reward_func, env=env, tasks=[dataset[i] for i in train_indices], args=args),
+            train_dataset=vgen_dataset(args.dataset_path, args),
+            args=training_args,
+        )
+    elif args.train_method == 'ppo':
+        ppo_config = PPOConfig(
+            model_name=args.model_name_or_path,
+            learning_rate=args.learning_rate,
+            batch_size=args.batch_size * 5,
+            mini_batch_size=args.mini_batch_size,
+            gradient_accumulation_steps=args.gradient_accumulation_steps * 5,
+            backward_batch_size=1,
+            ppo_epochs=args.ppo_epochs,
+            max_grad_norm=0.5,
+            optimize_device_cache=True,
+            seed=args.seed,
+            optimize_cuda_cache=True,
+            kl_penalty="kl"
+        )
+        # 初始化VLM PPO训练器
+        ppo_trainer = PPOTrainer(
+            config=ppo_config,
+            model=model,
+            tokenizer=processor.tokenizer,
+        )
+    
+    
     
     # 创建长度采样器
     length_sampler = LengthSampler(args.min_length, args.max_length)
@@ -425,320 +479,334 @@ def train(args):
         "max_new_tokens": 2048,
     }
     batch_indices = np.random.choice(train_indices, args.batch_size, replace=False)
-    task_infos = {}
-    while global_step < args.max_steps:
-        # 从训练集中采样任务批次
-        
-        tasks_batch = [dataset[i] for i in batch_indices]
-        logger.info(f"global step {global_step} 采样训练任务批次: {batch_indices}")
-        # 准备查询
-        query_tensors = [] # bs * step_len, seq_len
-        response_tensors = [] # bs * step_len, seq_len
-        batch_responses = [] # bs * step_len, seq_len
-        if os.path.exists(os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt")):
-            logger.info(f"加载中间结果: {os.path.join(args.env_output_dir, f'intermediate_{global_step}.pt')}")
-            intermediate = torch.load(os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt"), weights_only=False)
-            query_tensors = intermediate["query_tensors"]
-            response_tensors = intermediate["response_tensors"]
-            batch_responses = intermediate["batch_responses"]
-        else:
-            for i, task in enumerate(tasks_batch):
-                task_text = task["Query"][0]["content"]
-                logger.info(f"开始任务 {task['id']} 的计划生成")
-                assistant_response = None
-                task_dir = os.path.join(args.env_output_dir, f"global_step_{global_step}", f"Task_{task['id']}")
-                os.makedirs(task_dir, exist_ok=True)
-                plan_file = os.path.join(task_dir, f"plan_{task.get('id', '0000')}.json")
-                messages = []
-                for step, (step_name, step_prompt) in enumerate(plan_template.items()):
-                    logger.info(f"正在处理步骤 {step_name}")
-                    if assistant_response is not None:
-                        # assistance is content dict if not string
-                        messages.append({"role": "assistant", "content": [{"type": "text", "text": assistant_response if isinstance(assistant_response, str) else assistant_response.content}]})
-                    if step == 0:
-                        messages.append({"role": "system", "content": [{"type": "text", "text": system_prompt}]})
-                        messages.append({"role": "user", "content": [{"type": "text", "text" : f"{step_name}: {step_prompt} \n\n {task_text}"}]})
-                    else:
-                        if task['id'] in task_infos and args.use_icl and step_name == "Detailed Storyboarding":
-                            messages.append({"role": "user", "content": [{"type":"text", "text" : f"{step_name}: {step_prompt} \n\n {task_text} \n\n {ICL_META.format(task_infos[task['id']])}"}]})
-                            logger.info(f"Using task infos for detailed storyboarding: {task_infos[task['id']]}")
-                        else:
-                            messages.append({"role": "user", "content": [{"type":"text", "text" : f"{step_name}: {step_prompt} \n\n "}]})
-                    if not use_proprietary_model:
-                        # local model we use processor to encode
-                        text = processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
-                        inputs = processor(text=[text], padding=True, return_tensors="pt")
-                        inputs = inputs.to(ppo_trainer.accelerator.device)
-                        query_tensors.append(inputs.input_ids.squeeze()) 
 
-                    # 生成响应
-                    with torch.no_grad():
-                        # LM_head forward
-                        if use_proprietary_model:
-                            # use openai compatible api
-                            completion = client.chat.completions.create(
-                                model=args.model_name_or_path,
-                                messages=messages,
-                                temperature=0.6,
-                                max_completion_tokens=2048,
-                                seed=args.seed
-                            )
-                            response = completion.choices[0].message.content
-                        else:
-                            model_inputs = {"input_ids": inputs.input_ids, "attention_mask": torch.ones_like(inputs.input_ids).to(inputs.input_ids.device)}
-                            response = model.generate(
-                                **model_inputs,
-                                **generation_kwargs
-                            )
-                        
-                            response_tensors.append(response.squeeze()[inputs.input_ids.shape[1]:])
+    if args.use_icl:
+        # proprietary model or ICL mode, can use icl training only
+        task_infos = {}
+        while global_step < args.max_steps:
+            # 从训练集中采样任务批次
 
-                    # truncate prompt+respones to max_length
-                    if not args.use_icl and len(query_tensors[-1]) + len(response_tensors[-1]) > args.max_length:
-                        # assert len(response_tensors[-1]) < args.max_length, "response length is larger than max_length"
-                        if len(query_tensors[-1]) > args.max_length:
-                            logger.warning(f"query length is larger than max_length, query length: {len(query_tensors[-1])}, max_length: {args.max_length}")
-                            query_tensors[-1] = torch.tensor([], dtype=torch.long)
-                        else:
-                            truncate_length = len(query_tensors[-1]) + len(response_tensors[-1]) - args.max_length
-                            query_tensors[-1] = query_tensors[-1][-(len(query_tensors[-1]) - truncate_length):]
-                    if not use_proprietary_model:
-                        decoded_response = processor.decode(response.squeeze()[inputs.input_ids.shape[1]:], skip_special_tokens=True)
-                        response_text = decoded_response
-                        assistant_response = decoded_response
-                        logger.debug(f"任务 {i} 生成的响应长度: {len(decoded_response)} 字符")
-                    else:
-                        assistant_response = completion.choices[0].message
-                        response_text = completion.choices[0].message.content
-                    if assistant_response and step_name == "Casting Extraction":
-                        logger.info("正在提取角色中...")
-                        try:
-                            characters = extract_json_from_response(response_text)
-                            characters = json.loads(characters)
-                        except Exception as e:
-                            logger.error(f"Error extracting characters from completion {response_text}")
-                            characters = None
-                            # fix possible json format error
-                        if characters is not None:
-                            characters = transform_character_descriptions(characters)
-                            save_plan_json(characters, f"{task_dir}/characters.json")
-                        else:
-                            continue
-                    if assistant_response and step_name == "Script Writing":
-                        logger.info("正在提取分镜脚本中...")
-                        story = response_text
-                        with open(f"{task_dir}/story.txt", "w") as f:
-                            f.write(story)
-
-                    # batch_responses.append(decoded_response)
-
-                    
-                if assistant_response is not None:
-                    messages.append({"role": "assistant", "content": [{"type": "text", "text":assistant_response if isinstance(assistant_response, str)  else assistant_response.content}]}) 
-                try:
-                    extract_plan_from_response(response_text, plan_file, characters=characters)
-                except Exception as e:
-                    logger.error(f"Error extracting plan: {str(e)}")
-                    logger.info(response_text)
-                    # raise ValueError("Error extracting plan")
-                if os.path.exists(plan_file):
-                    plan = load_input_json(plan_file)
-                else:
-                    plan = None
-                batch_responses.append(plan)
-                save_plan_json(messages, os.path.join(task_dir, "messages.json"))
-            # save intermediates
-            if not use_proprietary_model and not args.use_icl:
-                logger.info(f"保存中间结果到: {os.path.join(args.env_output_dir, f'intermediate_{global_step}.pt')}")
-                torch.save({"query_tensors": query_tensors, "response_tensors": response_tensors, "batch_responses": batch_responses}, os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt"))
-            
-        # 准备计划并运行环境
-        batch_rewards = [] # (bs)
-        if os.path.exists(os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt")):
-            logger.info(f"加载奖励: {os.path.join(args.env_output_dir, f'intermediate_{global_step}_rewards.pt')}")
-            batch_rewards = torch.load(os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt"), weights_only=False)["batch_rewards"]
-        else:
-            for task, plan in zip(tasks_batch, batch_responses):
-
-                # 重置环境并执行计划
-                env.reset(task, task_dir=os.path.join(args.env_output_dir, f"global_step_{global_step}", f"Task_{task['id']}"))
-                observation, reward, done, info = env.step(plan, return_false=args.use_icl)
-                task_infos[task['id']] = info.false_answers
-
-                batch_rewards.append(float(reward))
-
-                logger.debug(f"任务 {task.get('id')}: 完成状态={done}, 奖励={reward:.4f}")
-
-                if done and reward > 0:
-                    # 保存有效计划示例
-                    with open(os.path.join(args.output_dir, f"good_plan_{task.get('id')}.json"), 'w', encoding='utf-8') as f:
-                        json.dump(plan, f, ensure_ascii=False, indent=2)
-            torch.save({"batch_rewards": batch_rewards}, os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt"))
-        
-        # 计算平均奖励
-        mean_reward = np.mean(batch_rewards) if batch_rewards else 0
-        logger.info(f"步骤 {global_step}: 平均奖励 = {mean_reward:.4f}")
-        
-        # 记录到wandb
-        if args.use_wandb:
-            wandb.log({
-                "global_step": global_step,
-                "mean_reward": mean_reward,
-                "max_reward": max(batch_rewards) if batch_rewards else 0,
-                "min_reward": min(batch_rewards) if batch_rewards else 0
-            })
-        
-        gamma = 0.9
-        # reward shaping: (bs) -> (bs * step_len) interleaved (r1, r1, r1, r1, r2, r2, r2, r2, ...)
-        batch_rewards = np.array(batch_rewards)
-        discounted_rewards = []
-        if not use_proprietary_model:
-            for reward in batch_rewards:
-                # 为每个步骤生成递减奖励
-                step_rewards = [torch.tensor(reward * (gamma ** (len(plan_template) - i)), dtype=torch.float32).to(ppo_trainer.accelerator.device) for i in range(len(plan_template))]
-                discounted_rewards.extend(step_rewards)
-        # batch_rewards = torch.tensor(discounted_rewards, dtype=torch.float32).to(ppo_trainer.accelerator.device)
-
-        logger.debug(f"query_tensors: {len(query_tensors)}, response_tensors: {len(response_tensors)}, discounted_rewards: {len(discounted_rewards)}")
-        logger.debug(f"query_tensors shape: {[t.shape for t in query_tensors]}")
-        logger.debug(f"response_tensors shape: {[t.shape for t in response_tensors]}")
-        logger.debug(f"discounted_rewards shape: {[t.shape for t in discounted_rewards]}")
-        
-        # 保存查询、响应和奖励到磁盘（JSON格式）
-        if args.dry_run:
-            dry_run_data = {
-                "step": global_step,
-                "tasks": [task.get('id', '0000') for task in tasks_batch],
-                "query_responses": [],
-                "rewards": batch_rewards.tolist() if isinstance(batch_rewards, np.ndarray) else batch_rewards,
-                "mean_reward": float(mean_reward)
-            }
-            
-            # 为每个查询-响应对准备JSON数据
-            for i, (query, response) in enumerate(zip(query_tensors, response_tensors)):
-                step_idx = i // len(plan_template)
-                plan_step = list(plan_template.keys())[i % len(plan_template)]
-                
-                # 解码查询和响应文本
-                query_text = processor.decode(query, skip_special_tokens=True)
-                response_text = processor.decode(response[query.shape[0]:], skip_special_tokens=True)
-                
-                dry_run_data["query_responses"].append({
-                    "task_id": tasks_batch[step_idx].get('id', '0000'),
-                    "plan_step": plan_step,
-                    "query": query_text,
-                    "response": response_text,
-                    "reward": float(discounted_rewards[i].cpu().numpy()) if hasattr(discounted_rewards[i], 'cpu') else float(discounted_rewards[i])
-                })
-            
-            # 保存JSON文件
-            dry_run_file = os.path.join(args.output_dir, f"dry_run_step_{global_step}.json")
-            with open(dry_run_file, 'w', encoding='utf-8') as f:
-                json.dump(dry_run_data, f, ensure_ascii=False, indent=2)
-            logger.info(f"干运行结果已保存至: {dry_run_file}")
-        # data_collator = DataCollatorForLanguageModeling(tokenizer=processor.tokenizer, mlm=False)
-        # PPO更新
-        if not args.dry_run:
-            # Value_head forward
-            if args.use_icl:
-                # revise plan_template for ICL
-                # plan_template["Detailed Storyboarding"] = plan_template["Detailed Storyboarding"] + ICL_META.format(info.get("false_answers", {}))
-                logger.info(f"Using ICL for training, task infos: {len(task_infos)}")
+            tasks_batch = [dataset[i] for i in batch_indices]
+            logger.info(f"global step {global_step} 采样训练任务批次: {batch_indices}")
+            # 准备查询
+            query_tensors = [] # bs * step_len, seq_len
+            response_tensors = [] # bs * step_len, seq_len
+            batch_responses = [] # bs * step_len, seq_len
+            if os.path.exists(os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt")):
+                logger.info(f"加载中间结果: {os.path.join(args.env_output_dir, f'intermediate_{global_step}.pt')}")
+                intermediate = torch.load(os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt"), weights_only=False)
+                query_tensors = intermediate["query_tensors"]
+                response_tensors = intermediate["response_tensors"]
+                batch_responses = intermediate["batch_responses"]
             else:
-                stats = ppo_trainer.step(query_tensors, response_tensors, discounted_rewards)
-                batch_data = {}
-                batch_data["query"] = query_tensors
-                batch_data["response"] = response_tensors
-                ppo_trainer.log_stats(stats, batch_data, discounted_rewards)
+                for i, task in enumerate(tasks_batch):
+                    task_text = task["Query"][0]["content"]
+                    logger.info(f"开始任务 {task['id']} 的计划生成")
+                    assistant_response = None
+                    task_dir = os.path.join(args.env_output_dir, f"global_step_{global_step}", f"Task_{task['id']}")
+                    os.makedirs(task_dir, exist_ok=True)
+                    plan_file = os.path.join(task_dir, f"plan_{task.get('id', '0000')}.json")
+                    messages = []
+                    for step, (step_name, step_prompt) in enumerate(plan_template.items()):
+                        logger.info(f"正在处理步骤 {step_name}")
+                        if assistant_response is not None:
+                            # assistance is content dict if not string
+                            messages.append({"role": "assistant", "content": [{"type": "text", "text": assistant_response if isinstance(assistant_response, str) else assistant_response.content}]})
+                        if step == 0:
+                            messages.append({"role": "system", "content": [{"type": "text", "text": system_prompt}]})
+                            if args.use_icl and step_name == "Detailed Storyboarding":
+                                messages.append({"role": "user", "content": [{"type":"text", "text" : f"{step_name}: {step_prompt} \n\n #Story:\n {task_text} \n\n {ICL_META.format(task_infos[task['id']]) if task['id'] in task_infos else ''}"}]})
+                                logger.info(f"Using task infos for detailed storyboarding: {task_infos.get(task['id'], '')}")
+                            else:
+                                messages.append({"role": "user", "content": [{"type": "text", "text" : f"{step_name}: {step_prompt} \n\n {task_text}"}]})
+                        else:
+                            if task['id'] in task_infos and args.use_icl and step_name == "Detailed Storyboarding":
+                                messages.append({"role": "user", "content": [{"type":"text", "text" : f"{step_name}: {step_prompt} \n\n #Story:\n {task_text} \n\n {ICL_META.format(task_infos[task['id']])}"}]})
+                                logger.info(f"Using task infos for detailed storyboarding: {task_infos[task['id']]}")
+                            else:
+                                messages.append({"role": "user", "content": [{"type":"text", "text" : f"{step_name}: {step_prompt} \n\n "}]})
+                        if not use_proprietary_model:
+                            # local model we use processor to encode
+                            text = processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+                            inputs = processor(text=[text], padding=True, return_tensors="pt")
+                            inputs = inputs.to(ppo_trainer.accelerator.device)
+                            query_tensors.append(inputs.input_ids.squeeze()) 
 
-            # model.train()
-            # for i in range(math.ceil(len(query_tensors) / args.mini_batch_size)):
-            #     optimizer.zero_grad()
-            #     start_idx = i * args.mini_batch_size
-            #     end_idx = min((i + 1) * args.mini_batch_size, len(query_tensors))
-            #     mini_query_tensors = query_tensors[start_idx:end_idx]
-            #     mini_response_tensors = response_tensors[start_idx:end_idx]
-            #     mini_discounted_rewards = discounted_rewards[start_idx:end_idx]
+                        # 生成响应
+                        with torch.no_grad():
+                            # LM_head forward
+                            if use_proprietary_model:
+                                # use openai compatible api
+                                completion = client.chat.completions.create(
+                                    model=args.model_name_or_path,
+                                    messages=messages,
+                                    temperature=0.6,
+                                    max_completion_tokens=2048,
+                                    seed=args.seed
+                                )
+                                response = completion.choices[0].message.content
+                            else:
+                                model_inputs = {"input_ids": inputs.input_ids, "attention_mask": torch.ones_like(inputs.input_ids).to(inputs.input_ids.device)}
+                                response = model.generate(
+                                    **model_inputs,
+                                    **generation_kwargs
+                                )
 
-            #     # 修改这一行，使用torch.cat而不是torch.stack
-            #     input_ids = [torch.cat([q, r]) for q, r in zip(mini_query_tensors, mini_response_tensors)]
+                                response_tensors.append(response.squeeze()[inputs.input_ids.shape[1]:])
 
-            #     # truncate input_ids to max_length
-            #     input_ids = [ids[-args.max_length:] for ids in input_ids]
-            #     model_inputs = [{
-            #         "input_ids": ids,
-            #         "attention_mask": torch.ones_like(ids),
-            #     } for ids in input_ids]
-            #     model_inputs = data_collator(model_inputs).to(accelerator.device)
+                        # truncate prompt+respones to max_length
+                        if not args.use_icl and len(query_tensors[-1]) + len(response_tensors[-1]) > args.max_length:
+                            # assert len(response_tensors[-1]) < args.max_length, "response length is larger than max_length"
+                            if len(query_tensors[-1]) > args.max_length:
+                                logger.warning(f"query length is larger than max_length, query length: {len(query_tensors[-1])}, max_length: {args.max_length}")
+                                query_tensors[-1] = torch.tensor([], dtype=torch.long)
+                            else:
+                                truncate_length = len(query_tensors[-1]) + len(response_tensors[-1]) - args.max_length
+                                query_tensors[-1] = query_tensors[-1][-(len(query_tensors[-1]) - truncate_length):]
+                        if not use_proprietary_model:
+                            decoded_response = processor.decode(response.squeeze()[inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                            response_text = decoded_response
+                            assistant_response = decoded_response
+                            logger.debug(f"任务 {i} 生成的响应长度: {len(decoded_response)} 字符")
+                        else:
+                            assistant_response = completion.choices[0].message
+                            response_text = completion.choices[0].message.content
+                        if assistant_response and step_name == "Casting Extraction":
+                            logger.info("正在提取角色中...")
+                            try:
+                                characters = extract_json_from_response(response_text)
+                                characters = json.loads(characters)
+                            except Exception as e:
+                                logger.error(f"Error extracting characters from completion {response_text}")
+                                characters = None
+                                # fix possible json format error
+                            if characters is not None:
+                                characters = transform_character_descriptions(characters)
+                                save_plan_json(characters, f"{task_dir}/characters.json")
+                            else:
+                                continue
+                        if assistant_response and step_name == "Script Writing":
+                            logger.info("正在提取分镜脚本中...")
+                            story = response_text
+                            with open(f"{task_dir}/story.txt", "w") as f:
+                                f.write(story)
 
-            #     logger.info(f"before forward: {torch.cuda.memory_allocated() / 1024**3:.2f} GB, Going to forward inputs of size {model_inputs['input_ids'].shape}")
-            #     logitss, loss, value = model(**model_inputs)
-
-            #     logger.info(f"after forward: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
-
-            #     logp = torch.nn.functional.log_softmax(logitss, dim=2)
+                        # batch_responses.append(decoded_response)
 
 
-            #     batch_input_ids = torch.stack(input_ids).to(accelerator.device)
-            #     log_probs = torch.gather(logp, 2, batch_input_ids.unsqueeze(2)).squeeze(-1)
-
-            #     rewards = torch.tensor(mini_discounted_rewards, device=accelerator.device).unsqueeze(1)  # shape: [bs, 1]
-            #     loss = (-log_probs * rewards).sum()
-                
-            #     lr_schedular.step()
-            #     accelerator.backward(loss)
-            #     optimizer.step()
-            #     accelerator.clip_grad_norm_(model.parameters(), 1.0)
-            #     del logitss, log_probs, loss, value
-            #     torch.cuda.empty_cache()
-        else:
-            logger.info("干运行模式：跳过PPO更新步骤")
-            batch_data = {}
-            batch_data["query"] = query_tensors
-            batch_data["response"] = response_tensors
-        
-        # 更新全局步数
-        global_step += 1
-        
-        # 保存模型检查点
-        if not args.dry_run and (global_step % args.save_steps == 0 or mean_reward > best_reward):
-            if mean_reward > best_reward:
-                best_reward = mean_reward
-                logger.info(f"新的最佳奖励: {best_reward:.4f}")
+                    if assistant_response is not None:
+                        messages.append({"role": "assistant", "content": [{"type": "text", "text":assistant_response if isinstance(assistant_response, str)  else assistant_response.content}]}) 
+                    try:
+                        extract_plan_from_response(response_text, plan_file)
+                    except Exception as e:
+                        logger.error(f"Error extracting plan: {str(e)}")
+                        logger.info(response_text)
+                        # raise ValueError("Error extracting plan")
+                    if os.path.exists(plan_file):
+                        plan = load_input_json(plan_file)
+                    else:
+                        plan = None
+                    batch_responses.append(plan)
+                    save_plan_json(messages, os.path.join(task_dir, "messages.json"))
+                # save intermediates
                 if not use_proprietary_model and not args.use_icl:
-                    ppo_trainer.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
-                # unwrapped_model = accelerator.unwrap_model(model)
-                # os.makedirs(os.path.join(args.output_dir, "best_reward_model"), exist_ok=True)
-                # unwrapped_model.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
-                # model.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
-            
-            save_dir = os.path.join(args.output_dir, f"checkpoint-{global_step}")
-            if not use_proprietary_model and not args.use_icl:
-                ppo_trainer.save_pretrained(save_dir)
-            # os.makedirs(save_dir, exist_ok=True)
-            # unwrapped_model = accelerator.unwrap_model(model)
-            # unwrapped_model.save_pretrained(save_dir)
-            # model.save_pretrained(save_dir)
-            logger.info(f"保存检查点到: {save_dir}")
-        
-        # 评估
-        if global_step % args.eval_steps == 0:
-            logger.info(f"步骤 {global_step} - 运行评估...")
-            # 从验证集中采样进行评估
-            eval_batch_indices = np.random.choice(val_indices, min(args.batch_size, len(val_indices)), replace=False)
-            eval_tasks_batch = [dataset[i] for i in eval_batch_indices]
-            logger.info(f"评估任务批次: {eval_batch_indices}")
-            
-            # 这里可以添加验证集评估逻辑
-            # 例如：运行与训练相同的生成和奖励计算步骤，但不更新模型
-            
+                    logger.info(f"保存中间结果到: {os.path.join(args.env_output_dir, f'intermediate_{global_step}.pt')}")
+                    torch.save({"query_tensors": query_tensors, "response_tensors": response_tensors, "batch_responses": batch_responses}, os.path.join(args.env_output_dir, f"intermediate_{global_step}.pt"))
+
+            # 准备计划并运行环境
+            batch_rewards = [] # (bs)
+            batch_rewards_ref = [] # (bs)
+            if os.path.exists(os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt")):
+                logger.info(f"加载奖励: {os.path.join(args.env_output_dir, f'intermediate_{global_step}_rewards.pt')}")
+                batch_rewards = torch.load(os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt"), weights_only=False)["batch_rewards"]
+            else:
+                for task, plan in zip(tasks_batch, batch_responses):
+
+                    # 重置环境并执行计划
+                    env.reset(task, task_dir=os.path.join(args.env_output_dir, f"global_step_{global_step}", f"Task_{task['id']}"), reset_questinos=args.use_icl, task_ids=[task["id"] for task in tasks_batch])
+                    observation, reward_dict, done, info = env.step(plan, return_false=args.use_icl, return_ref_reward=args.use_icl)
+                    reward = reward_dict.get("reward", 0.0)
+                    ref_reward = reward_dict.get("ref_reward", 0.0)
+                    task_infos[task['id']] = info.false_answers
+
+                    batch_rewards.append(float(reward))
+                    batch_rewards_ref.append(float(ref_reward))
+
+                    logger.debug(f"任务 {task.get('id')}: 完成状态={done}, 奖励={reward:.4f}")
+
+                    if done and reward > 0:
+                        # 保存有效计划示例
+                        with open(os.path.join(args.output_dir, f"good_plan_{task.get('id')}.json"), 'w', encoding='utf-8') as f:
+                            json.dump(plan, f, ensure_ascii=False, indent=2)
+                torch.save({"batch_rewards": batch_rewards}, os.path.join(args.env_output_dir, f"intermediate_{global_step}_rewards.pt"))
+
+            # 计算平均奖励
+            mean_reward = np.mean(batch_rewards) if batch_rewards else 0
+            mean_reward_ref = np.mean(batch_rewards_ref) if batch_rewards_ref else 0
+            logger.info(f"步骤 {global_step}: 平均奖励 = {mean_reward:.4f} (参考奖励 = {mean_reward_ref:.4f})")
+
+            # 记录到wandb
             if args.use_wandb:
                 wandb.log({
                     "global_step": global_step,
-                    "eval_step": True
-                    # 这里可以添加验证集的评估指标
+                    "mean_reward": mean_reward,
+                    "mean_reward_ref": mean_reward_ref,
+                    "max_reward": max(batch_rewards) if batch_rewards else 0,
+                    "min_reward": min(batch_rewards) if batch_rewards else 0
                 })
-    
+
+            gamma = 0.9
+            # reward shaping: (bs) -> (bs * step_len) interleaved (r1, r1, r1, r1, r2, r2, r2, r2, ...)
+            batch_rewards = np.array(batch_rewards)
+            discounted_rewards = []
+            if not use_proprietary_model:
+                for reward in batch_rewards:
+                    # 为每个步骤生成递减奖励
+                    step_rewards = [torch.tensor(reward * (gamma ** (len(plan_template) - i)), dtype=torch.float32).to(ppo_trainer.accelerator.device) for i in range(len(plan_template))]
+                    discounted_rewards.extend(step_rewards)
+            # batch_rewards = torch.tensor(discounted_rewards, dtype=torch.float32).to(ppo_trainer.accelerator.device)
+
+            logger.debug(f"query_tensors: {len(query_tensors)}, response_tensors: {len(response_tensors)}, discounted_rewards: {len(discounted_rewards)}")
+            logger.debug(f"query_tensors shape: {[t.shape for t in query_tensors]}")
+            logger.debug(f"response_tensors shape: {[t.shape for t in response_tensors]}")
+            logger.debug(f"discounted_rewards shape: {[t.shape for t in discounted_rewards]}")
+
+            # 保存查询、响应和奖励到磁盘（JSON格式）
+            if args.dry_run:
+                dry_run_data = {
+                    "step": global_step,
+                    "tasks": [task.get('id', '0000') for task in tasks_batch],
+                    "query_responses": [],
+                    "rewards": batch_rewards.tolist() if isinstance(batch_rewards, np.ndarray) else batch_rewards,
+                    "mean_reward": float(mean_reward)
+                }
+
+                # 为每个查询-响应对准备JSON数据
+                for i, (query, response) in enumerate(zip(query_tensors, response_tensors)):
+                    step_idx = i // len(plan_template)
+                    plan_step = list(plan_template.keys())[i % len(plan_template)]
+
+                    # 解码查询和响应文本
+                    query_text = processor.decode(query, skip_special_tokens=True)
+                    response_text = processor.decode(response[query.shape[0]:], skip_special_tokens=True)
+
+                    dry_run_data["query_responses"].append({
+                        "task_id": tasks_batch[step_idx].get('id', '0000'),
+                        "plan_step": plan_step,
+                        "query": query_text,
+                        "response": response_text,
+                        "reward": float(discounted_rewards[i].cpu().numpy()) if hasattr(discounted_rewards[i], 'cpu') else float(discounted_rewards[i])
+                    })
+
+                # 保存JSON文件
+                dry_run_file = os.path.join(args.output_dir, f"dry_run_step_{global_step}.json")
+                with open(dry_run_file, 'w', encoding='utf-8') as f:
+                    json.dump(dry_run_data, f, ensure_ascii=False, indent=2)
+                logger.info(f"干运行结果已保存至: {dry_run_file}")
+            # data_collator = DataCollatorForLanguageModeling(tokenizer=processor.tokenizer, mlm=False)
+            # PPO更新
+            if not args.dry_run:
+                # Value_head forward
+                if args.use_icl:
+                    # revise plan_template for ICL
+                    # plan_template["Detailed Storyboarding"] = plan_template["Detailed Storyboarding"] + ICL_META.format(info.get("false_answers", {}))
+                    logger.info(f"Using ICL for training, task infos: {len(task_infos)}")
+                else:
+                    stats = ppo_trainer.step(query_tensors, response_tensors, discounted_rewards)
+                    batch_data = {}
+                    batch_data["query"] = query_tensors
+                    batch_data["response"] = response_tensors
+                    ppo_trainer.log_stats(stats, batch_data, discounted_rewards)
+
+                # model.train()
+                # for i in range(math.ceil(len(query_tensors) / args.mini_batch_size)):
+                #     optimizer.zero_grad()
+                #     start_idx = i * args.mini_batch_size
+                #     end_idx = min((i + 1) * args.mini_batch_size, len(query_tensors))
+                #     mini_query_tensors = query_tensors[start_idx:end_idx]
+                #     mini_response_tensors = response_tensors[start_idx:end_idx]
+                #     mini_discounted_rewards = discounted_rewards[start_idx:end_idx]
+
+                #     # 修改这一行，使用torch.cat而不是torch.stack
+                #     input_ids = [torch.cat([q, r]) for q, r in zip(mini_query_tensors, mini_response_tensors)]
+
+                #     # truncate input_ids to max_length
+                #     input_ids = [ids[-args.max_length:] for ids in input_ids]
+                #     model_inputs = [{
+                #         "input_ids": ids,
+                #         "attention_mask": torch.ones_like(ids),
+                #     } for ids in input_ids]
+                #     model_inputs = data_collator(model_inputs).to(accelerator.device)
+
+                #     logger.info(f"before forward: {torch.cuda.memory_allocated() / 1024**3:.2f} GB, Going to forward inputs of size {model_inputs['input_ids'].shape}")
+                #     logitss, loss, value = model(**model_inputs)
+
+                #     logger.info(f"after forward: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+
+                #     logp = torch.nn.functional.log_softmax(logitss, dim=2)
+
+
+                #     batch_input_ids = torch.stack(input_ids).to(accelerator.device)
+                #     log_probs = torch.gather(logp, 2, batch_input_ids.unsqueeze(2)).squeeze(-1)
+
+                #     rewards = torch.tensor(mini_discounted_rewards, device=accelerator.device).unsqueeze(1)  # shape: [bs, 1]
+                #     loss = (-log_probs * rewards).sum()
+
+                #     lr_schedular.step()
+                #     accelerator.backward(loss)
+                #     optimizer.step()
+                #     accelerator.clip_grad_norm_(model.parameters(), 1.0)
+                #     del logitss, log_probs, loss, value
+                #     torch.cuda.empty_cache()
+            else:
+                logger.info("干运行模式：跳过PPO更新步骤")
+                batch_data = {}
+                batch_data["query"] = query_tensors
+                batch_data["response"] = response_tensors
+
+            # 更新全局步数
+            global_step += 1
+
+            # 保存模型检查点
+            if not args.dry_run and (global_step % args.save_steps == 0 or mean_reward > best_reward):
+                if mean_reward > best_reward:
+                    best_reward = mean_reward
+                    logger.info(f"新的最佳奖励: {best_reward:.4f}")
+                    if not use_proprietary_model and not args.use_icl:
+                        ppo_trainer.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
+                    # unwrapped_model = accelerator.unwrap_model(model)
+                    # os.makedirs(os.path.join(args.output_dir, "best_reward_model"), exist_ok=True)
+                    # unwrapped_model.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
+                    # model.save_pretrained(os.path.join(args.output_dir, "best_reward_model"))
+
+                save_dir = os.path.join(args.output_dir, f"checkpoint-{global_step}")
+                if not use_proprietary_model and not args.use_icl:
+                    ppo_trainer.save_pretrained(save_dir)
+                # os.makedirs(save_dir, exist_ok=True)
+                # unwrapped_model = accelerator.unwrap_model(model)
+                # unwrapped_model.save_pretrained(save_dir)
+                # model.save_pretrained(save_dir)
+                logger.info(f"保存检查点到: {save_dir}")
+
+            # 评估
+            if global_step % args.eval_steps == 0:
+                logger.info(f"步骤 {global_step} - 运行评估...")
+                # 从验证集中采样进行评估
+                eval_batch_indices = np.random.choice(val_indices, min(args.batch_size, len(val_indices)), replace=False)
+                eval_tasks_batch = [dataset[i] for i in eval_batch_indices]
+                logger.info(f"评估任务批次: {eval_batch_indices}")
+
+                # 这里可以添加验证集评估逻辑
+                # 例如：运行与训练相同的生成和奖励计算步骤，但不更新模型
+
+                if args.use_wandb:
+                    wandb.log({
+                        "global_step": global_step,
+                        "eval_step": True
+                        # 这里可以添加验证集的评估指标
+                    })
+    else:
+        ppo_trainer.train()
     # 保存最终模型
     if not use_proprietary_model and not args.use_icl:
         ppo_trainer.save_pretrained(os.path.join(args.output_dir, "final_model"))

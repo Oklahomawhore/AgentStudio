@@ -10,3 +10,9 @@ gpt:
 qwen:
   model_key_env: "DASHSCOPE_API_KEY"
   model_base_url_env: "DASHSCOPE_API_BASE"
+gemini:
+  model_key_env: "KLING_API_KEY"
+  model_base_url_env: "ZZZZ_API_BASE"
+claude:
+  model_key_env: "KLING_API_KEY"
+  model_base_url_env: "ZZZZ_API_BASE"

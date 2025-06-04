@@ -19,15 +19,15 @@ examples for visually answerable questions:
 * Does the setting include a beach or ocean?
 * How many people are present in the courtroom scene?
 
-Please organize the questions in a JSON object and provide the answers as well.
+Please organize the questions in a JSON object and provide the answers as well. If multiple blanks are needed, the answers should be separated by colons ";".
 
 The JSON object should have the following structure:
 {{
   "fill_in_the_blank": [
     {{
       "type": "fill-in-the-blank",
-      "question": "The first protein cooked in the pot is __________.",
-      "answer": "shrimp"
+      "question": "The first protein cooked in the pot are __________ and _________.",
+      "answer": "shrimp;beaf"
     }},
     {{
       "type": "fill-in-the-blank",
@@ -153,30 +153,55 @@ def extract_json_from_response(json_text):
     json_text = response_text[start_index:end_index]
     return json_text
 
-def generate_task_questions(task, output_dir="/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/instance_questions_deepseek", prev_correct=None):
+def generate_task_questions(task, output_dir="/data/wangshu/wangshu_code/ISG/ISV_eval/datasets/NovelConditionedVGen/instance_questions_deepseek", prev_correct=None, llm: callable =None):
     os.makedirs(output_dir, exist_ok=True)
     task_id = task.get("id")
     for query in task.get("Query"):
         if query["type"] == "text":
             story = query["content"]
         if not os.path.exists(f"{output_dir}/{task_id}.json"):
-            response = OpenAIClient.chat.completions.create(
-                model="doubao-1-5-thinking-vision-pro-250428",
-                messages=[
-                    {"role": "user", "content": meta_prompt.format(story, prev_correct)}
-                ],
-                temperature=0.7,
-                max_tokens=4096,
-                response_format={"type" : "json_object"}
-            )
-            questions = response.choices[0].message.content
-            questions = json.loads(extract_json_from_response(questions))
+            if llm:
+                print(f"{__file__} line 164: using llm responder to generate questions ")
+                response = llm(prompt=meta_prompt.format(story, prev_correct))
+            else:
+                completion = OpenAIClient.chat.completions.create(
+                    model="doubao-1-5-thinking-vision-pro-250428",
+                    messages=[
+                        {"role": "user", "content": meta_prompt.format(story, prev_correct)}
+                    ],
+                    temperature=0.7,
+                    max_tokens=4096,
+                    response_format={"type" : "json_object"}
+                )
+                response = completion.choices[0].message.content
+            try:
+              questions = json.loads(extract_json_from_response(response))
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON for task {task_id}: {e}")
+                print(f"Response: {response}")
+                if llm:
+                    print(f"{__file__} line 164: using llm responder to generate questions ")
+                    response = llm(prompt=meta_prompt.format(story, prev_correct))
+                else:
+                    completion = OpenAIClient.chat.completions.create(
+                        model="doubao-1-5-thinking-vision-pro-250428",
+                        messages=[
+                            {"role": "user", "content": meta_prompt.format(story, prev_correct)}
+                        ],
+                        temperature=0.7,
+                        max_tokens=4096,
+                        response_format={"type" : "json_object"}
+                    )
+                    response = completion.choices[0].message.content
+                questions = json.loads(extract_json_from_response(response))
             with open(f"{output_dir}/{task_id}.json", "w") as f:
                 json.dump(questions, f, indent=4, ensure_ascii=False)
 
-def generate_dataset_questions(input_json, prev_correct=None, output_dir=None):
+def generate_dataset_questions(input_json, prev_correct=None, output_dir=None, llm=None, task_ids=None):
     with open(input_json, "r") as f:
         tasks = json.load(f)
     for i, task in enumerate(tasks):
         task_id = task.get("id")
-        generate_task_questions(task, prev_correct=prev_correct[task_id] if prev_correct and task_id in prev_correct else None, output_dir=output_dir)
+        if task_ids and task_id not in task_ids:
+            continue
+        generate_task_questions(task, prev_correct=prev_correct[task_id] if prev_correct and task_id in prev_correct else None, output_dir=output_dir, llm=llm)

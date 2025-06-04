@@ -176,7 +176,7 @@ cython_debug/
 # Output files
 
 */results*
-*/videos
+**/videos
 */audio
 */music
 */imgs

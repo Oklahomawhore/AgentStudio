@@ -132,7 +132,7 @@ class MultipleChoiceQuestion(Question):
             elif answer in self.options:
                 self.answer = ['A', 'B', 'C', 'D'][self.options.index(answer)]
             else:
-                raise ValueError("Answer must be one of the options: 'A', 'B', 'C', 'D'")
+                raise ValueError(f"Answer must be one of the options: 'A', 'B', 'C', 'D' got {answer} questions text {question_text}")
         else:
             self.answer = answer
     def to_dict(self):

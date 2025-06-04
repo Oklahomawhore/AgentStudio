@@ -1,15 +1,14 @@
 import os
 from openai import OpenAI
 import dotenv
-from util import capture_screenshots
-import base64
+
 import dashscope
 from http import HTTPStatus
-import glob
+
 from typing import List, Tuple, Dict, Any
 
 import torch
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor, AutoModelForImageTextToText
+from transformers import AutoProcessor, AutoModelForImageTextToText
 from qwen_vl_utils import process_vision_info
 import numpy as np
 from PIL import Image
@@ -89,10 +88,11 @@ def inference(model, processor, video_path=None, prompt: List[Dict] | str=None, 
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": [
                     {"type": "text", "text": prompt},
-                    {"type": "video", "video": f"file://{video_path}", "max_pixels": 8 * 28 * 28},
                 ]
             },
         ]
+        if video_path:
+            messages[1]['content'].append({"type": "video", "video": f"file://{video_path}", "max_pixels": 8 * 28 * 28})
     else:
         messages = prompt
         for message in messages:
@@ -104,8 +104,8 @@ def inference(model, processor, video_path=None, prompt: List[Dict] | str=None, 
     image_inputs, video_inputs, video_kwargs = process_vision_info([messages], return_video_kwargs=True)
     fps_inputs = video_kwargs['fps']
     # print("video input:", video_inputs[0].shape)
-    num_frames, _, resized_height, resized_width = video_inputs[0].shape
-    print("num of video tokens:", int(num_frames / 2 * resized_height / 28 * resized_width / 28))
+    # num_frames, _, resized_height, resized_width = video_inputs[0].shape
+    # print("num of video tokens:", int(num_frames / 2 * resized_height / 28 * resized_width / 28))
     inputs = processor(text=[text], images=image_inputs, videos=video_inputs, padding=True, return_tensors="pt", **video_kwargs)
     inputs = inputs.to('cuda')
 

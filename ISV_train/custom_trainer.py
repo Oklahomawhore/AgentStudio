@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from trl.trainer.ppo_trainer import PPOTrainer
 import time
-from trl.core import flatten_dict, stats_to_np, stack_dicts, PPODecorators
+from trl.core import flatten_dict, PPODecorators
 from typing import List, Optional
 
 
@@ -424,7 +424,7 @@ class VLMPPO(PPOTrainer):
 
         # 处理统计信息
         t = time.time()
-        train_stats = stack_dicts(all_stats)
+        # train_stats = stack_dicts(all_stats)
         
         # 记录PPO统计信息
         stats = self.record_step_stats(
@@ -443,7 +443,7 @@ class VLMPPO(PPOTrainer):
         # 处理分布式统计数据
         if self.is_distributed:
             stats = self.gather_stats(stats)
-        stats = stats_to_np(stats)
+        # stats = stats_to_np(stats)
         timing["time/ppo/calc_stats"] = time.time() - t
         stats["ppo/learning_rate"] = self.optimizer.param_groups[0]["lr"]
 

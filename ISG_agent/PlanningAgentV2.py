@@ -16,7 +16,7 @@ import replicate
 import oss2, requests
 import uuid
 from production import gen_img, generate_all
-from typing import DefaultDict, Dict
+from typing import DefaultDict, Dict, List, Any, Tuple
 from PIL import Image
 import glob
 

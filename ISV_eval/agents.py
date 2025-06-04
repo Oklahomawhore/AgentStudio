@@ -16,8 +16,8 @@ import oss2
 import copy
 from oss2.credentials import EnvironmentVariableCredentialsProvider
 
-from util import resolve_api_from_model_name
-from vlm_score import inference
+from ISV_eval.util import resolve_api_from_model_name
+from ISV_eval.vlm_score import inference
 
 # 添加一个线程本地存储，用于存储每个线程的客户端实例
 thread_local = threading.local()
@@ -150,8 +150,14 @@ class BaseAgent:
             ]
         """
         has_upload = False
+        openai_key_mappings = {
+            'image': 'image_url',
+            'video': 'video_url',
+            'audio': 'audio',
+        }
         for message in messages:
             content = message['content']
+            new_content = []
             for elem in content:
                 if not isinstance(elem,
                                   (int, float, bool, str, bytes, bytearray)):
@@ -160,6 +166,7 @@ class BaseAgent:
                             contents = content if isinstance(content, list) else [content]
                             for i, content in enumerate(contents):
                                 if not content.startswith('http') and os.path.isfile(content):
+                                    has_upload = True
                                     #upload to oss
                                     # 从环境变量中获取访问凭证。运行本代码示例之前，请确保已设置环境变量OSS_ACCESS_KEY_ID和OSS_ACCESS_KEY_SECRET。
                                     auth = oss2.ProviderAuthV4(EnvironmentVariableCredentialsProvider())
@@ -184,7 +191,14 @@ class BaseAgent:
                                     bucket.put_object_from_file(objectName, local_file_path)
 
                                     elem[key] = bucket.sign_url('GET', objectName, 2 * 60 * 60)  # 2小时有效期
-
+                                if key == 'text':
+                                    new_content.append({'type': 'text', 'text': content})
+                                else:
+                                    new_content.append({'type': openai_key_mappings[key], openai_key_mappings[key]: {"url" : elem[key]}})
+                else:
+                    new_content = content
+            message['content'] = new_content
+        return has_upload
 
     def _prepare_messages(self, recent_message_count: int = 10) -> List[Dict[str, str]]:
         """准备发送给API的消息列表"""
@@ -247,26 +261,20 @@ class BaseAgent:
         # 使用线程池处理API调用
         loop = asyncio.get_running_loop()
         
-        if 'qwen' in self.model.lower():
+        if local_model and local_processor:
             # 使用线程池执行DashScope调用
             try:
                 # use local model if using qwen models.
                 reply = inference(local_model, local_processor, prompt=raw_messages)
                 
             except Exception as e:
-                # print("-" * 40)
-                # print(f"DashScope API failed, {e}, try using local model..")
-                # print("-" * 40)
-                print("local model failed to provide response, using dashscope api")
-                uploaded = BaseAgent._preprocess_messages(self.model, messages, os.getenv("DASHSCOPE_API_KEY"))
-                reply = await loop.run_in_executor(
-                    self.executor,
-                    self._call_dashscope,
-                    messages
-                )
+                print(f"Local model call failed: {e}")
                 
         else:
             # 使用线程池执行OpenAI调用
+            # upload and use image_url, video_url for multimodal inputs
+            uploaded = BaseAgent._preprocess_messages(self.model, messages, os.getenv("DASHSCOPE_API_KEY"))
+            print(f" uploaded File contents to Aliyun OSS: {uploaded}")
             reply = await loop.run_in_executor(
                 self.executor,
                 self._call_openai,
@@ -973,3 +981,17 @@ class CulturalExpertAgent(BaseAgent):
         """评估电影对特定文化的影响"""
         prompt = f"请评估电影《{film_title}》对{target_culture}的潜在影响。考虑电影中的文化表达如何被该文化群体感知，以及可能产生的社会影响。"
         return await self._respond_to_user(prompt)
+
+if __name__ == '__main__':
+    # 示例：创建一个观众代表智能体
+    messages = [
+        {"role": "user", "content": "请评价电影《少年的你》"},
+        {"role": "assistant", "content": "这部电影非常感人，展现了青少年之间的深厚友谊和社会压力。"},
+        {"role": "user", "content":[
+            {"text": "请评价电影《少年的你》"},
+            {"image": "/data/wangshu/wangshu_code/ISG/ISV_train/outputs/doubao-1-5-thinking-vision-pro-250428-ppo-20250529-221714/env_results/global_step_0/Task_0008/screenshot_2.png"},
+            {"video": "/data/wangshu/wangshu_code/ISG/ISV_train/outputs/doubao-1-5-thinking-vision-pro-250428-ppo-20250529-221714/env_results/global_step_0/Task_0008/final_video_29b0f594-9a5c-4082-81b3-e1c3f8b2cdc1.mp4"}
+        ]},
+    ]
+    BaseAgent._preprocess_messages("gpt-4o", messages, os.getenv("DASHSCOPE_API_KEY"))
+    print("Processed messages:", messages)

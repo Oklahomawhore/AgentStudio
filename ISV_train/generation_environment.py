@@ -8,6 +8,8 @@ import subprocess
 from typing import Dict, List, Tuple, Any, Optional, Union
 from dataclasses import dataclass
 import dotenv
+import re
+import functools
 
 import sys
 file_path = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +22,11 @@ from ISV_eval.agent_academy import get_score, process_question_v3, get_score_for
 from ISV_eval.eval_instance import ResponseEvaluator
 from ISV_eval.prompt_datasets import EnhancedVideoStorytellingDataset
 from ISV_eval.question_define import generate_dataset_questions
+from ISV_eval.vlm_score import inference
+from ISV_eval.util import resolve_api_from_model_name
+
+from openai import OpenAI
+
 
 from ISV_eval.eval_instance import reprompt_llm
 # 配置日志
@@ -112,6 +119,7 @@ class GenerationEnvironment:
         self.output_dir = os.path.join(base_dir, output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
         self.questions_dir = questions_dir
+        self.ref_questions_dir = questions_dir
         self.generation_mode = generation_mode
         self.prompt_json = prompt_json
         self.model = model
@@ -135,7 +143,7 @@ class GenerationEnvironment:
         self.false_answers = {}
         self.correct_answers = {}
         
-    def reset(self, task: Dict, task_dir: str) -> EnvObservation:
+    def reset(self, task: Dict, task_dir: str, reset_questinos=False, task_ids=None) -> EnvObservation:
         """
         重置环境状态，准备新任务
         
@@ -151,6 +159,10 @@ class GenerationEnvironment:
         self.current_task = task
         self.current_task_dir = task_dir or os.path.join(self.output_dir, f"Task_{task_id}")
         os.makedirs(self.current_task_dir, exist_ok=True)
+
+        if reset_questinos:
+            # regenerate instance questions
+            self.generate_instance_questions(task_ids=task_ids)
         
         self.text_history = f"开始处理任务 {task_id}\n"
         self.plan = None
@@ -171,8 +183,7 @@ class GenerationEnvironment:
             feedback="",
             task=self.current_task
         )
-    
-    def step(self, plan: Optional[List[Dict]] = None, return_false=False) -> Tuple[EnvObservation, float, bool, EnvInfo]:
+    def step(self, plan: Optional[List[Dict]] = None, return_false=False, return_ref_reward=False) -> Tuple[EnvObservation, float, bool, EnvInfo]:
         """
         执行环境步进，处理计划或生成视频
         
@@ -201,13 +212,13 @@ class GenerationEnvironment:
             self.text_history += "视频已生成，环境终止\n"
             
             # 运行评估
-            reward = self._evaluate_videos(return_false=return_false)
+            reward_ref = None
+            if return_ref_reward:
+                reward_ref = self._evaluate_videos(return_false=False, questions_dir=self.ref_questions_dir)
             if return_false:
-                reward, false_answers = reward
-                logger.info(f"Return false answers in info. Reward: {reward:.2f}, False answers: {false_answers}")
+                reward, false_answers = self._evaluate_videos(return_false=return_false, questions_dir=self.questions_dir)
             else:
-                logger.info("No false answers in info, just return reward. {reward:.2f}")
-                reward = reward
+                reward = self._evaluate_videos(return_false=return_false, questions_dir=self.questions_dir)
             
             return EnvObservation(
                 text_history=self.text_history,
@@ -215,7 +226,7 @@ class GenerationEnvironment:
                 video_status="已生成",
                 feedback=f"评估分数: {reward:.4f}",
                 task=self.current_task
-            ), reward, True, EnvInfo(
+            ), {"reward" : reward, "ref_reward" : reward_ref or 0.0}, True, EnvInfo(
                 plan_file=self.plan_file,
                 video_files=self.video_files,
                 execution_time=execution_time,
@@ -223,13 +234,9 @@ class GenerationEnvironment:
                 false_answers=false_answers if return_false else None
             )
         
-        characters_file = os.path.join(self.current_task_dir, "characters.json")
-        story_file = os.path.join(self.current_task_dir, "story.txt")
-        is_characters_file = os.path.exists(characters_file)
-        is_story_file = os.path.exists(story_file)
             
         # 如果没有有效计划，返回中间状态
-        if self.plan is None or type(self.plan) is not list or len(self.plan) == 0 or not is_characters_file or not is_story_file:
+        if self.plan is None or type(self.plan) is not list or len(self.plan) == 0:
             logger.warning("没有有效的执行计划，请提供计划")
             self.text_history += "没有有效的执行计划，请提供计划\n"
             return EnvObservation(
@@ -238,7 +245,7 @@ class GenerationEnvironment:
                 video_status="未创建",
                 feedback="需要有效计划",
                 task=self.current_task
-            ), 0.0, False, EnvInfo(
+            ), {"reward" : 0.0}, False, EnvInfo(
                 plan_file="",
                 video_files=[],
                 execution_time=execution_time,
@@ -259,14 +266,13 @@ class GenerationEnvironment:
             
             # 运行评估
             logger.info("开始评估视频质量...")
-            if self.regenerate_question:
-                # regenerate instance questions
-                self.generate_instance_questions()
-            result = self._evaluate_videos(return_false=return_false)
+            reward_ref = None
+            if return_ref_reward:
+                reward_ref = self._evaluate_videos(return_false=False, questions_dir=self.ref_questions_dir)
             if return_false:
-                reward, false_answers = result
+                reward, false_answers = self._evaluate_videos(return_false=return_false, questions_dir=self.questions_dir)
             else:
-                reward = result
+                reward = self._evaluate_videos(return_false=return_false, questions_dir=self.questions_dir)
             logger.info(f"视频评估完成，评分: {reward:.4f}")
             
             return EnvObservation(
@@ -275,7 +281,7 @@ class GenerationEnvironment:
                 video_status="已生成",
                 feedback=f"评估分数: {reward:.4f}",
                 task=self.current_task
-            ), reward, True, EnvInfo(
+            ), {"reward" : reward, "ref_reward" : reward_ref or 0.0}, True, EnvInfo(
                 plan_file=self.plan_file,
                 video_files=self.video_files,
                 execution_time=execution_time,
@@ -293,7 +299,7 @@ class GenerationEnvironment:
                 video_status="生成失败",
                 feedback="视频生成失败",
                 task=self.current_task
-            ), -0.1, False, EnvInfo(
+            ), {"reward" : -0.1}, False, EnvInfo(
                 plan_file=self.plan_file,
                 video_files=[],
                 execution_time=execution_time,
@@ -341,6 +347,75 @@ class GenerationEnvironment:
             logger.debug(f"计划文件不存在: {self.plan_file}")
         return False
     
+    def _generate_characters_from_plan(self, plan: List[Dict], story: str) -> Dict[str, Any]:
+        """
+        从计划中生成角色信息
+        
+        参数:
+            plan: 执行计划列表
+            story: 故事文本
+            
+        返回:
+            characters: 生成的角色信息字典
+        """
+        characters = {}
+        # 收集所有步骤中的内容
+        all_content = "##".join([step.get("Input_text", "") for step in self.plan])
+        
+        # 使用正则表达式找出所有<#name#>模式
+        character_matches = re.findall(r'<#(.*?)#>', all_content)
+        
+        # 如果找到了角色名
+        characters = {}
+        if character_matches:
+            # 去重角色名
+            unique_characters = list(set(character_matches))
+            logger.info(f"从计划中提取到{len(unique_characters)}个独特角色: {unique_characters}")
+            
+            # 为每个角色生成描述
+            if unique_characters:
+                character_list = ", ".join(unique_characters)
+                for character in unique_characters:
+                    if self.model and self.processor:
+                        response = inference(self.model, self.processor, 
+                                             prompt=f"Generate a character description for: {character}. The description should include age, gender, body size, costumes and face description. Your response should precisely contain the description without any structural/superfluous information. \n\n##Background story: {story}", 
+                                             max_new_tokens=1024)
+                    else:
+                        api_key, base_url = resolve_api_from_model_name(self.model_name,config_file=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ISV_eval/model_mapping.yaml")))
+                        client = OpenAI(api_key=api_key, base_url=base_url)
+                        response = client.chat.completions.create(
+                            model=self.model_name,
+                            messages=[
+                                {"role": "system", "content": "You are a helpful assistant who creates detailed character descriptions."},
+                                {"role": "user", "content": f"Generate a character description for: {character}. The description should include age, gender, body size, costumes and face description. Your response should precisely contain the description without any structural/superfluous information. \n\n##Background story: {story}"}
+                            ],
+                            temperature=0.7,
+                            max_tokens=1024,
+                        )
+                        response = response.choices[0].message.content
+                    characters[character] = response.strip()
+                        
+        logger.debug(f"从计划中生成了 {len(characters)} 个角色描述")
+        return characters
+    def _generate_story_from_plan(self, plan: List[Dict]) -> str:
+        if self.model and self.processor:
+            response = inference(self.model, self.processor, 
+                                 prompt=f"Generate a detailed story based on the following storyboard: {plan}", 
+                                 max_new_tokens=1024)
+        else:
+            api_key, base_url = resolve_api_from_model_name(self.model_name, config_file=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ISV_eval/model_mapping.yaml")))
+            client = OpenAI(api_key=api_key, base_url=base_url)
+            response = client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": f"Generate a detailed story based on the following storyboard: {plan}"}
+                ],
+                temperature=0.7,
+                max_tokens=1024,
+            )
+            response = response.choices[0].message.content
+        return response
     def _execute_plan(self):
         """执行计划生成视频"""
         if not self.plan:
@@ -349,16 +424,6 @@ class GenerationEnvironment:
             return False
         
         try:
-            # 加载角色信息
-            characters = {}
-            characters_file = os.path.join(self.current_task_dir, "characters.json")
-            if os.path.exists(characters_file):
-                with open(characters_file, 'r', encoding='utf-8') as f:
-                    characters = json.load(f)
-                logger.debug(f"已加载角色信息，共{len(characters)}个角色")
-            else:
-                logger.debug("未找到角色信息文件")
-            
             # 加载故事信息
             story = ""
             story_file = os.path.join(self.current_task_dir, "story.txt")
@@ -367,10 +432,28 @@ class GenerationEnvironment:
                     story = f.read()
                 logger.debug(f"已加载故事信息，长度: {len(story)}字符")
             else:
-                logger.debug("未找到故事文件")
+                story = self._generate_story_from_plan(self.plan)
+                with open(story_file, 'w', encoding='utf-8') as f:
+                    f.write(story)
+                logger.debug("未找到故事文件 已根据plan生成")
             
+            # 加载角色信息
+            characters = {}
+            characters_file = os.path.join(self.current_task_dir, "characters.json")
+            if os.path.exists(characters_file):
+                with open(characters_file, 'r', encoding='utf-8') as f:
+                    characters = json.load(f)
+                logger.debug(f"已加载角色信息，共{len(characters)}个角色")
+            else:
+                # generate characters according to plan
+                characters = self._generate_characters_from_plan(self.plan, story)
+                with open(characters_file, 'w', encoding='utf-8') as f:
+                    json.dump(characters, f)
+                logger.debug("未找到角色信息文件， 根据脚本已经重新生成")
+
             # 执行计划生成视频
             logger.info(f"开始执行计划生成视频，生成模式: {self.generation_mode}")
+
 
             # 检查self.args是否为数据类并转换为字典
             kwargs = {}
@@ -400,17 +483,40 @@ class GenerationEnvironment:
             with open(error_file, 'a') as f:
                 f.write(f"执行计划失败: {str(e)}\n")
             return False
-    def generate_instance_questions(self):
+    def generate_instance_questions(self, task_ids=None):
         # regenerate instance questions
-        generate_dataset_questions(self.prompt_json, prev_correct=self.correct_answers, output_dir=os.path.join(self.current_task_dir, "instance_questions"))
+        if self.model and self.processor:
+            llm_responder = functools.partial(
+                inference, 
+                model=self.model, 
+                processor=self.processor, 
+            )
+        else:
+            # propietary model
+            def llm_responder(prompt: str, **kwargs):
+                api_key , base_url = resolve_api_from_model_name(self.model_name, config_file=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ISV_eval/model_mapping.yaml")))
+                client = OpenAI(api_key=api_key, base_url=base_url)
+                response = client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant who generates questions based on video content."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=4096,
+                    response_format={"type": "json_object"}
+                )
+                return response.choices[0].message.content
+        logger.info(f"Starting regneration of questions for tasks: {task_ids}")
+        generate_dataset_questions(self.prompt_json, prev_correct=self.correct_answers, output_dir=os.path.join(self.current_task_dir, "instance_questions"), llm=llm_responder, task_ids=task_ids)
         self.questions_dir = os.path.join(self.current_task_dir, "instance_questions")
 
-    def _evaluate_videos(self, return_false=False) -> Union[float, Tuple[float, Dict]]:
+    def _evaluate_videos(self, return_false=False, questions_dir=None) -> Union[float, Tuple[float, Dict]]:
         """评估生成的视频质量并返回评分"""
         if not self.is_video_generated or not self.video_files:
             logger.warning("无视频可评估")
             return 0.0
-        
+        questions_dir = questions_dir or self.questions_dir
         try:
             # 使用异步函数来评估视频
             video_path = self.video_files[0]
@@ -418,7 +524,7 @@ class GenerationEnvironment:
             logger.info(f"开始评估视频: {video_path}")
             
             # 从questions_dir加载问题
-            question_path = os.path.join(self.questions_dir, f"{task_id}.json")
+            question_path = os.path.join(questions_dir, f"{task_id}.json")
             
             if not os.path.exists(question_path):
                 logger.error(f"找不到问题文件: {question_path}")
@@ -427,12 +533,8 @@ class GenerationEnvironment:
             
             logger.debug(f"找到问题文件: {question_path}")
             
-            # 加载问题文件
-            with open(question_path, 'r', encoding='utf-8') as f:
-                questions = json.load(f)
-            
             # 构建问题对象
-            dataset = EnhancedVideoStorytellingDataset(self.prompt_json, self.questions_dir)
+            dataset = EnhancedVideoStorytellingDataset(self.prompt_json, questions_dir)
             questions = dataset.get_story_questions(int(task_id))
             
             # 处理问题
@@ -458,7 +560,7 @@ class GenerationEnvironment:
             if result_file and os.path.exists(result_file):
                 logger.debug(f"评估结果文件: {result_file}")
                 # 评估回答
-                evaluator = ResponseEvaluator(result_file, self.questions_dir, reprompt_llm=reprompt_llm)
+                evaluator = ResponseEvaluator(result_file, questions_dir, reprompt_llm=reprompt_llm)
                 scores = evaluator.evaluate_all()
                 false_answers = evaluator.get_false_answers()
                 correct_answers = evaluator.get_correct_answers()
